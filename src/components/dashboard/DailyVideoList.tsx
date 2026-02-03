@@ -18,10 +18,10 @@ export default function DailyVideoList({ date, username, videos, onBack }: Daily
                 <div className="flex items-center gap-3">
                     <button
                         onClick={onBack}
-                        className="group flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+                        className="group flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300 transition-all text-sm font-medium"
                     >
-                        <div className="bg-white/5 p-1.5 rounded-full group-hover:bg-white/10 transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                        <div className="bg-cyan-500/20 p-1 rounded-full group-hover:bg-cyan-500/30 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
                         </div>
                         Back to Trend
                     </button>

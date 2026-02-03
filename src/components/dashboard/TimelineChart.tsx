@@ -83,7 +83,14 @@ export default function TimelineChart({
             // Axis lock: when tooltip is hovered, force tooltip to stay at locked index
             // Use isDispatching flag to prevent infinite loop
             let isDispatching = false;
-            chartInstance.current.on('updateAxisPointer', () => {
+            chartInstance.current.on('updateAxisPointer', (event: any) => {
+                // Suppress default axis highlight (thickening all lines)
+                if (chartInstance.current) {
+                    chartInstance.current.dispatchAction({
+                        type: 'downplay',
+                    });
+                }
+
                 if (lockedDataIndex.current !== null && chartInstance.current && !isDispatching) {
                     isDispatching = true;
                     chartInstance.current.dispatchAction({
@@ -245,13 +252,14 @@ export default function TimelineChart({
                 },
                 emphasis: {
                     disabled: false,
+                    focus: 'series', // Only highlight the active series, fade others
                     lineStyle: {
-                        width: 6,
-                        color: '#22d3ee', // Cyan highlight
+                        width: 5,
+                        color: normalColor, // Always use series color for highlight, ignore ghost state
                     },
                     itemStyle: {
-                        color: '#22d3ee',
-                        borderWidth: 3,
+                        color: normalColor,
+                        borderWidth: 2,
                         borderColor: '#fff',
                     },
                 },
@@ -291,6 +299,11 @@ export default function TimelineChart({
                         { offset: 0, color: 'rgba(34, 211, 238, 0.3)' },
                         { offset: 1, color: 'transparent' },
                     ]),
+                },
+                emphasis: {
+                    focus: 'series',
+                    lineStyle: { width: 5, color: '#22d3ee' },
+                    itemStyle: { color: '#22d3ee', borderWidth: 2, borderColor: '#fff' }
                 },
                 z: 20,
                 data: averageData,

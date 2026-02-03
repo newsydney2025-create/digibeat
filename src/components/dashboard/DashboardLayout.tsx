@@ -91,6 +91,13 @@ export default function DashboardLayout({
         )
     }, [filteredVideos])
 
+    // State for restoring view after drill-down
+    const [viewHistory, setViewHistory] = useState<{
+        selectedAccounts: string[],
+        timeRange: TimeRange,
+        currentMetric: MetricKey
+    } | null>(null)
+
     // Ref for scrolling to detail table
     const tableRef = useRef<HTMLDivElement>(null)
     const [detailView, setDetailView] = useState<{ date: string; username: string; videos: any[] } | null>(null)
@@ -100,7 +107,14 @@ export default function DashboardLayout({
         // Find account by username
         const account = accounts.find((a) => a.username === username)
         if (account) {
-            // Select only this account
+            // Save current state before drilling down
+            setViewHistory({
+                selectedAccounts: [...selectedAccounts],
+                timeRange,
+                currentMetric
+            })
+
+            // Select only this account for the focused view
             setSelectedAccounts([account.id])
 
             // Calculate daily gains for simulation
@@ -267,19 +281,30 @@ export default function DashboardLayout({
                             </div>
                         </div>
 
-                        <MetricCards
-                            totals={totals}
-                            currentMetric={currentMetric}
-                            onSelectMetric={setCurrentMetric}
-                        />
+                        {!detailView && (
+                            <MetricCards
+                                totals={totals}
+                                currentMetric={currentMetric}
+                                onSelectMetric={setCurrentMetric}
+                            />
+                        )}
 
-                        <div className="flex-1 w-full mt-4 relative z-10 min-h-0">
+                        <div className={`flex-1 w-full mt-4 relative z-10 min-h-0 ${detailView ? 'h-full' : ''}`}>
                             {detailView ? (
                                 <DailyVideoList
                                     date={detailView.date}
                                     username={detailView.username}
                                     videos={detailView.videos}
-                                    onBack={() => setDetailView(null)}
+                                    onBack={() => {
+                                        setDetailView(null)
+                                        // Restore previous state if exists
+                                        if (viewHistory) {
+                                            setSelectedAccounts(viewHistory.selectedAccounts)
+                                            setTimeRange(viewHistory.timeRange)
+                                            setCurrentMetric(viewHistory.currentMetric)
+                                            setViewHistory(null)
+                                        }
+                                    }}
                                 />
                             ) : chartViewMode === 'grid' ? (
                                 <SmallMultiplesGrid
