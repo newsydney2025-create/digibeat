@@ -1,0 +1,363 @@
+'use client'
+
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { TikTokAccount, TikTokVideo, MetricKey, DashboardMetrics, DailySnapshot, AccountGroup } from '@/types/database'
+import Header from './Header'
+import AccountSidebar from './AccountSidebar'
+import MetricCards from './MetricCards'
+import TimelineChart from './TimelineChart'
+import SmallMultiplesGrid from './SmallMultiplesGrid'
+import TopContentChart from './TopContentChart'
+import DailyVideoList from './DailyVideoList'
+import ImpactScatterChart from './ImpactScatterChart'
+import HashtagChart from './HashtagChart'
+import TrafficShareChart from './TrafficShareChart'
+import VideoDetailTable from './VideoDetailTable'
+import GroupManager from './GroupManager'
+import { generateSessionId } from '@/lib/utils/format'
+import { fetchSnapshots, fetchAccountGroups } from '@/app/actions/tiktok'
+
+interface DashboardLayoutProps {
+    sessionId: string // kept for display
+    accounts: TikTokAccount[]
+    videos: TikTokVideo[]
+    onLogout: () => void
+}
+
+type TimeRange = '3D' | '7D' | '30D' | '90D'
+
+export default function DashboardLayout({
+    sessionId,
+    accounts,
+    videos,
+    onLogout,
+}: DashboardLayoutProps) {
+    const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
+        accounts.map((a) => a.id)
+    )
+    const [currentMetric, setCurrentMetric] = useState<MetricKey>('playCount')
+    const [timeRange, setTimeRange] = useState<TimeRange>('30D')
+    const [snapshots, setSnapshots] = useState<DailySnapshot[]>([])
+    const [groups, setGroups] = useState<AccountGroup[]>([])
+    const [groupManagerOpen, setGroupManagerOpen] = useState(false)
+
+    // Update selected accounts when accounts prop changes
+    useEffect(() => {
+        if (accounts.length > 0) {
+            setSelectedAccounts(accounts.map((a) => a.id))
+        }
+    }, [accounts])
+
+    // Fetch daily snapshots and groups
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                const [snapshotsData, groupsData] = await Promise.all([
+                    fetchSnapshots(),
+                    fetchAccountGroups()
+                ])
+                console.log('Fetched snapshots:', snapshotsData.length, snapshotsData.slice(0, 3))
+                setSnapshots(snapshotsData)
+                setGroups(groupsData)
+            } catch (error) {
+                console.error('Failed to load data', error)
+            }
+        }
+        loadData()
+    }, [])
+
+    // Filter videos by selected accounts
+    const filteredVideos = useMemo(() => {
+        return videos.filter((v) => selectedAccounts.includes(v.account_id || ''))
+    }, [videos, selectedAccounts])
+
+    // Calculate aggregated metrics
+    const totals = useMemo<DashboardMetrics>(() => {
+        return filteredVideos.reduce(
+            (acc, video) => ({
+                playCount: acc.playCount + video.play_count,
+                diggCount: acc.diggCount + video.digg_count,
+                commentCount: acc.commentCount + video.comment_count,
+                shareCount: acc.shareCount + video.share_count,
+                collectCount: acc.collectCount + (video.collect_count || 0),
+            }),
+            {
+                playCount: 0,
+                diggCount: 0,
+                commentCount: 0,
+                shareCount: 0,
+                collectCount: 0,
+            }
+        )
+    }, [filteredVideos])
+
+    // Ref for scrolling to detail table
+    const tableRef = useRef<HTMLDivElement>(null)
+    const [detailView, setDetailView] = useState<{ date: string; username: string; videos: any[] } | null>(null)
+
+    // Handle chart click to drill down
+    const handleChartClick = async (username: string, date: string) => {
+        // Find account by username
+        const account = accounts.find((a) => a.username === username)
+        if (account) {
+            // Select only this account
+            setSelectedAccounts([account.id])
+
+            // Calculate daily gains for simulation
+            // Find current snapshot
+            const currentSnapshot = snapshots.find(s => s.account_id === account.id && s.date === date)
+            let dailyGains = { views: 5000, likes: 500, comments: 50, shares: 20 } // default fallback
+
+            if (currentSnapshot) {
+                // Find previous snapshot to diff
+                const sortedSnapshots = snapshots
+                    .filter(s => s.account_id === account.id)
+                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+                const currentIndex = sortedSnapshots.findIndex(s => s.date === date)
+                if (currentIndex > 0) {
+                    const prevSnapshot = sortedSnapshots[currentIndex - 1]
+                    dailyGains = {
+                        views: Math.max(0, currentSnapshot.total_views - prevSnapshot.total_views),
+                        likes: Math.max(0, currentSnapshot.total_likes - prevSnapshot.total_likes),
+                        comments: Math.max(0, currentSnapshot.total_comments - prevSnapshot.total_comments),
+                        shares: Math.max(0, currentSnapshot.total_shares - prevSnapshot.total_shares)
+                    }
+                }
+            }
+
+            // Fetch daily breakdown (simulated)
+            try {
+                // Import dynamically to avoid server/client issues if not careful, but actions are safe
+                const { fetchDailyVideoBreakdown } = await import('@/app/actions/tiktok')
+                const breakdown = await fetchDailyVideoBreakdown(account.id, date, dailyGains)
+
+                setDetailView({
+                    date,
+                    username,
+                    videos: breakdown
+                })
+
+                console.log(`Drilling down to account: ${username} on date: ${date}`, breakdown)
+            } catch (err) {
+                console.error('Failed to fetch breakdown', err)
+            }
+        }
+    }
+
+    const [viewMode, setViewMode] = useState<'total' | 'daily'>('daily')
+    const [showAverage, setShowAverage] = useState(true) // New: show average line
+    const [hoveredAccount, setHoveredAccount] = useState<string | null>(null) // New: hover sync
+    const [chartViewMode, setChartViewMode] = useState<'chart' | 'grid'>('chart') // New: chart vs small multiples
+
+    return (
+        <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-cyan-500/30">
+            {/* Background Gradients */}
+            <div className="fixed inset-0 z-0 pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-900/10 rounded-full blur-[120px]" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-cyan-900/10 rounded-full blur-[120px]" />
+            </div>
+
+            <div className="relative z-10 flex h-screen overflow-hidden">
+                <AccountSidebar
+                    accounts={accounts}
+                    selectedAccounts={selectedAccounts}
+                    onToggleAccount={(id) => {
+                        setSelectedAccounts((prev) =>
+                            prev.includes(id)
+                                ? prev.filter((i) => i !== id)
+                                : [...prev, id]
+                        )
+                    }}
+                    onToggleAll={() => {
+                        setSelectedAccounts(
+                            selectedAccounts.length === accounts.length
+                                ? []
+                                : accounts.map(a => a.id)
+                        )
+                    }}
+                    videos={videos}
+                    hoveredAccount={hoveredAccount}
+                    onAccountHover={setHoveredAccount}
+                    groups={groups}
+                    onOpenGroupManager={() => setGroupManagerOpen(true)}
+                    onSelectGroup={(groupId) => {
+                        const group = groups.find(g => g.id === groupId)
+                        if (group?.members) {
+                            // Toggle: if all selected, deselect all; otherwise select all
+                            const allSelected = group.members.every(id => selectedAccounts.includes(id))
+                            if (allSelected) {
+                                setSelectedAccounts(prev => prev.filter(id => !group.members!.includes(id)))
+                            } else {
+                                setSelectedAccounts(prev => Array.from(new Set([...prev, ...group.members!])))
+                            }
+                        }
+                    }}
+                />
+
+                <main className="flex-1 flex flex-col min-w-0 h-full p-6 gap-6 overflow-y-auto custom-scrollbar">
+                    <Header sessionId={sessionId} onLogout={onLogout} />
+
+                    {/* Top Row: Performance Metrics - Main Visual Focus */}
+                    <div className="glass-panel p-6 rounded-xl flex flex-col min-h-0 relative group h-[650px] shrink-0">
+                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl pointer-events-none" />
+
+                        <div className="flex justify-between items-start mb-4 z-10">
+                            <div>
+                                <h2 className="text-xl font-bold flex items-center gap-3">
+                                    <span className="w-1.5 h-8 bg-cyan-400 rounded-full shadow-[0_0_15px_#22d3ee]" />
+                                    PERFORMANCE METRICS
+                                </h2>
+                                <p className="text-xs text-gray-500 mt-1 font-mono uppercase tracking-wider">
+                                    daily traffic analysis
+                                </p>
+                            </div>
+
+                            <div className="flex gap-4 items-center">
+                                {/* View Mode Toggle */}
+                                <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
+                                    <button
+                                        onClick={() => setChartViewMode('chart')}
+                                        className={`px-2 py-1 text-xs font-mono rounded transition-all ${chartViewMode === 'chart'
+                                            ? 'bg-white/10 text-cyan-400'
+                                            : 'text-gray-500 hover:text-gray-300'
+                                            }`}
+                                        title="Combined Chart"
+                                    >
+                                        📈
+                                    </button>
+                                    <button
+                                        onClick={() => setChartViewMode('grid')}
+                                        className={`px-2 py-1 text-xs font-mono rounded transition-all ${chartViewMode === 'grid'
+                                            ? 'bg-white/10 text-cyan-400'
+                                            : 'text-gray-500 hover:text-gray-300'
+                                            }`}
+                                        title="Small Multiples Grid"
+                                    >
+                                        ⊞
+                                    </button>
+                                </div>
+                                {/* Average Toggle (only show in chart mode) */}
+                                {chartViewMode === 'chart' && (
+                                    <button
+                                        onClick={() => setShowAverage(!showAverage)}
+                                        className={`px-3 py-1.5 text-xs font-mono rounded-md border transition-all ${showAverage
+                                            ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                                            : 'bg-black/40 border-white/10 text-gray-500 hover:text-gray-300'
+                                            }`}
+                                    >
+                                        {showAverage ? '⊕ AVG' : '≡ ALL'}
+                                    </button>
+                                )}
+                                {/* Time Range Selector */}
+                                <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
+                                    {(['3D', '7D', '30D', '90D'] as TimeRange[]).map((range) => (
+                                        <button
+                                            key={range}
+                                            onClick={() => setTimeRange(range)}
+                                            className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${timeRange === range
+                                                ? 'bg-white/10 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                                                : 'text-gray-500 hover:text-gray-300'
+                                                }`}
+                                        >
+                                            {range}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <MetricCards
+                            totals={totals}
+                            currentMetric={currentMetric}
+                            onSelectMetric={setCurrentMetric}
+                        />
+
+                        <div className="flex-1 w-full mt-4 relative z-10 min-h-0">
+                            {detailView ? (
+                                <DailyVideoList
+                                    date={detailView.date}
+                                    username={detailView.username}
+                                    videos={detailView.videos}
+                                    onBack={() => setDetailView(null)}
+                                />
+                            ) : chartViewMode === 'grid' ? (
+                                <SmallMultiplesGrid
+                                    snapshots={snapshots}
+                                    accounts={accounts}
+                                    selectedAccounts={selectedAccounts}
+                                    currentMetric={currentMetric}
+                                    timeRange={timeRange}
+                                    viewMode={viewMode}
+                                    onAccountClick={(id) => {
+                                        // Focus on this account when clicked in grid
+                                        setSelectedAccounts([id])
+                                        setChartViewMode('chart')
+                                    }}
+                                />
+                            ) : (
+                                <TimelineChart
+                                    snapshots={snapshots}
+                                    accounts={accounts}
+                                    selectedAccounts={selectedAccounts}
+                                    currentMetric={currentMetric}
+                                    timeRange={timeRange}
+                                    onDataClick={handleChartClick}
+                                    viewMode={viewMode}
+                                    showAverage={showAverage && selectedAccounts.length > 2}
+                                    hoveredAccount={hoveredAccount}
+                                    onAccountHover={setHoveredAccount}
+                                />
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Second Row: Charts */}
+                    <div className="grid grid-cols-12 gap-6 h-[280px] shrink-0">
+                        <div className="col-span-4 glass-panel p-4 rounded-xl flex flex-col min-h-0">
+                            <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Traffic Share</h3>
+                            <TrafficShareChart
+                                videos={filteredVideos}
+                                accounts={accounts}
+                                selectedAccounts={selectedAccounts}
+                                currentMetric={currentMetric}
+                            />
+                        </div>
+                        <div className="col-span-4 glass-panel p-4 rounded-xl flex flex-col min-h-0">
+                            <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Top Performing</h3>
+                            <TopContentChart
+                                videos={filteredVideos}
+                                accounts={accounts}
+                                currentMetric={currentMetric}
+                                onVideoClick={(url) => window.open(url, '_blank')}
+                            />
+                        </div>
+                        <div className="col-span-4 glass-panel p-4 rounded-xl flex flex-col min-h-0">
+                            <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Hot Hashtags</h3>
+                            <HashtagChart videos={filteredVideos} />
+                        </div>
+                    </div>
+
+                    {/* Third Row: Impact Analysis */}
+                    <div className="glass-panel p-4 rounded-xl flex flex-col min-h-0 h-[280px] shrink-0">
+                        <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Impact Scatter Analysis</h3>
+                        <ImpactScatterChart videos={filteredVideos} accounts={accounts} onVideoClick={(url) => window.open(url, '_blank')} />
+                    </div>
+
+                    {/* Bottom Row: Detailed Table */}
+                    <div ref={tableRef} className="h-[400px] shrink-0">
+                        <VideoDetailTable videos={filteredVideos} accounts={accounts} />
+                    </div>
+                </main>
+            </div>
+
+            {/* Group Manager Modal */}
+            <GroupManager
+                accounts={accounts}
+                isOpen={groupManagerOpen}
+                onClose={() => setGroupManagerOpen(false)}
+                onGroupsChange={setGroups}
+            />
+        </div>
+    )
+}
