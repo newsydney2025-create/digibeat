@@ -1,0 +1,2 @@
+﻿src/app/actions/tiktok.ts(117,21): error TS2345: Argument of type 'any' is not assignable to parameter of type 'never'.
+src/app/actions/tiktok.ts(130,21): error TS2345: Argument of type 'any' is not assignable to parameter of type 'never'.
