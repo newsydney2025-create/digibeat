@@ -59,8 +59,9 @@ export default function VideoDetailTable({ videos, accounts, platform = 'tiktok'
                                     <div className="flex items-center gap-3">
                                         {video.cover_url && (
                                             <img
-                                                src={video.cover_url}
+                                                src={platform === 'instagram' && video.cover_url ? `/api/proxy-image?url=${encodeURIComponent(video.cover_url)}` : video.cover_url}
                                                 alt="cover"
+                                                referrerPolicy="no-referrer"
                                                 className="w-8 h-10 object-cover rounded bg-gray-800"
                                             />
                                         )}

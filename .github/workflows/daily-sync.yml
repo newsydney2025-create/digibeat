@@ -1,0 +1,19 @@
+name: Daily Data Sync
+
+on:
+  schedule:
+    # Runs at 22:00 UTC everyday
+    # During AEDT (UTC+11), this is 09:00 Sydney
+    # During AEST (UTC+10), this is 08:00 Sydney
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Sync API
+        run: |
+          curl -X POST ${{ secrets.NEXT_PUBLIC_APP_URL }}/api/sync \
+          -H "Content-Type: application/json" \
+          -d '{"is_daily": true, "platform": "all"}'

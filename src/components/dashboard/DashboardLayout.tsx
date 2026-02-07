@@ -17,7 +17,7 @@ import GroupManager from './GroupManager'
 import { generateSessionId } from '@/lib/utils/format'
 import { fetchSnapshots, fetchAccountGroups } from '@/app/actions/tiktok'
 import PlatformSwitcher from '@/components/common/PlatformSwitcher'
-import { adaptReelsToVideos, adaptInstagramAccounts, generateInstagramSnapshots } from '@/lib/utils/platformAdapter'
+import { adaptReelsToVideos, adaptInstagramAccounts } from '@/lib/utils/platformAdapter'
 
 interface DashboardLayoutProps {
     sessionId: string // kept for display
@@ -51,6 +51,12 @@ export default function DashboardLayout({
     const [groups, setGroups] = useState<AccountGroup[]>([])
     const [groupManagerOpen, setGroupManagerOpen] = useState(false)
 
+    // Hoisted state variables (must be before useMemo)
+    const [viewMode, setViewMode] = useState<'total' | 'daily'>('daily')
+    const [showAverage, setShowAverage] = useState(true) // New: show average line
+    const [hoveredAccount, setHoveredAccount] = useState<string | null>(null) // New: hover sync
+    const [chartViewMode, setChartViewMode] = useState<'chart' | 'grid'>('chart') // New: chart vs small multiples
+
     // Platform-aware data: use adapter to convert Instagram data to TikTok format
     const activeAccounts = useMemo(() => {
         if (platform === 'instagram') {
@@ -66,13 +72,11 @@ export default function DashboardLayout({
         return videos
     }, [platform, videos, instagramReels])
 
-    // Generate snapshots for Instagram on the fly
+    // Generate snapshots for each account
+    // Fixed: Always use DB snapshots for strict daily recording logic
     const activeSnapshots = useMemo(() => {
-        if (platform === 'instagram') {
-            return generateInstagramSnapshots(instagramReels, instagramAccounts)
-        }
         return snapshots
-    }, [platform, snapshots, instagramReels, instagramAccounts])
+    }, [snapshots])
 
     // Update selected accounts when platform or accounts change
     useEffect(() => {
@@ -80,6 +84,13 @@ export default function DashboardLayout({
             setSelectedAccounts(activeAccounts.map((a) => a.id))
         }
     }, [activeAccounts])
+
+    // Reset metric if shares is selected but we switch to Instagram (where shares are hidden)
+    useEffect(() => {
+        if (platform === 'instagram' && currentMetric === 'shareCount') {
+            setCurrentMetric('playCount')
+        }
+    }, [platform, currentMetric])
 
     // Fetch daily snapshots and groups
     useEffect(() => {
@@ -106,6 +117,33 @@ export default function DashboardLayout({
 
     // Calculate aggregated metrics
     const totals = useMemo<DashboardMetrics>(() => {
+        if (viewMode === 'daily') {
+            // Calculate daily gain (Today - Yesterday) for all selected accounts
+            const latestDate = activeSnapshots.length > 0
+                ? activeSnapshots.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b).date
+                : null
+
+            if (!latestDate) return { playCount: 0, diggCount: 0, commentCount: 0, shareCount: 0, collectCount: 0 }
+
+            const yesterday = new Date(latestDate)
+            yesterday.setDate(yesterday.getDate() - 1)
+            const yesterdayDate = yesterday.toISOString().split('T')[0]
+
+            return selectedAccounts.reduce((acc, accountId) => {
+                const todaySnap = activeSnapshots.find(s => s.account_id === accountId && s.date === latestDate)
+                const yesterdaySnap = activeSnapshots.find(s => s.account_id === accountId && s.date === yesterdayDate)
+
+                if (todaySnap) {
+                    acc.playCount += Math.max(0, todaySnap.total_views - (yesterdaySnap?.total_views || 0))
+                    acc.diggCount += Math.max(0, todaySnap.total_likes - (yesterdaySnap?.total_likes || 0))
+                    acc.commentCount += Math.max(0, todaySnap.total_comments - (yesterdaySnap?.total_comments || 0))
+                    acc.shareCount += Math.max(0, todaySnap.total_shares - (yesterdaySnap?.total_shares || 0))
+                }
+                return acc
+            }, { playCount: 0, diggCount: 0, commentCount: 0, shareCount: 0, collectCount: 0 })
+        }
+
+        // Total view: Sum all current video stats
         return filteredVideos.reduce(
             (acc, video) => ({
                 playCount: acc.playCount + video.play_count,
@@ -122,7 +160,7 @@ export default function DashboardLayout({
                 collectCount: 0,
             }
         )
-    }, [filteredVideos])
+    }, [filteredVideos, viewMode, activeSnapshots, selectedAccounts])
 
     // State for restoring view after drill-down
     const [viewHistory, setViewHistory] = useState<{
@@ -170,6 +208,14 @@ export default function DashboardLayout({
                         comments: Math.max(0, currentSnapshot.total_comments - prevSnapshot.total_comments),
                         shares: Math.max(0, currentSnapshot.total_shares - prevSnapshot.total_shares)
                     }
+                } else {
+                    // First day: Daily gain IS the total (assuming 0 baseline)
+                    dailyGains = {
+                        views: currentSnapshot.total_views,
+                        likes: currentSnapshot.total_likes,
+                        comments: currentSnapshot.total_comments,
+                        shares: currentSnapshot.total_shares
+                    }
                 }
             }
 
@@ -191,11 +237,6 @@ export default function DashboardLayout({
             }
         }
     }
-
-    const [viewMode, setViewMode] = useState<'total' | 'daily'>('daily')
-    const [showAverage, setShowAverage] = useState(true) // New: show average line
-    const [hoveredAccount, setHoveredAccount] = useState<string | null>(null) // New: hover sync
-    const [chartViewMode, setChartViewMode] = useState<'chart' | 'grid'>('chart') // New: chart vs small multiples
 
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-cyan-500/30">
@@ -245,7 +286,13 @@ export default function DashboardLayout({
                 <main className="flex-1 flex flex-col min-w-0 h-full p-6 gap-6 overflow-y-auto custom-scrollbar">
                     <div className="flex items-center justify-between">
                         <Header sessionId={sessionId} onLogout={onLogout} />
-                        <PlatformSwitcher platform={platform} onChange={onPlatformChange} />
+                        <PlatformSwitcher
+                            platform={platform}
+                            onChange={(p) => {
+                                onPlatformChange(p)
+                                setDetailView(null)
+                            }}
+                        />
                     </div>
 
                     {/* Top Row: Performance Metrics - Main Visual Focus */}
@@ -267,7 +314,42 @@ export default function DashboardLayout({
                                 {/* View Mode Toggle */}
                                 <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
                                     <button
-                                        onClick={() => setChartViewMode('chart')}
+                                        onClick={() => {
+                                            setViewMode('daily')
+                                            setDetailView(null)
+                                        }}
+                                        title="Daily Growth: Traffic gained today by the top 20 most recent videos"
+                                        className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${viewMode === 'daily'
+                                            ? 'bg-white/10 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                                            : 'text-gray-500 hover:text-gray-300'
+                                            }`}
+                                    >
+                                        DAILY
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setViewMode('total')
+                                            setDetailView(null)
+                                        }}
+                                        title="Cumulative Total: Current total traffic of the top 20 most recent videos"
+                                        className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${viewMode === 'total'
+                                            ? 'bg-white/10 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                                            : 'text-gray-500 hover:text-gray-300'
+                                            }`}
+                                    >
+                                        TOTAL
+                                    </button>
+                                </div>
+
+                                <div className="w-px h-6 bg-white/10 mx-2" />
+
+                                {/* Chart Type Toggle */}
+                                <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
+                                    <button
+                                        onClick={() => {
+                                            setChartViewMode('chart')
+                                            setDetailView(null)
+                                        }}
                                         className={`px-2 py-1 text-xs font-mono rounded transition-all ${chartViewMode === 'chart'
                                             ? 'bg-white/10 text-cyan-400'
                                             : 'text-gray-500 hover:text-gray-300'
@@ -277,7 +359,10 @@ export default function DashboardLayout({
                                         📈
                                     </button>
                                     <button
-                                        onClick={() => setChartViewMode('grid')}
+                                        onClick={() => {
+                                            setChartViewMode('grid')
+                                            setDetailView(null)
+                                        }}
                                         className={`px-2 py-1 text-xs font-mono rounded transition-all ${chartViewMode === 'grid'
                                             ? 'bg-white/10 text-cyan-400'
                                             : 'text-gray-500 hover:text-gray-300'
@@ -304,7 +389,10 @@ export default function DashboardLayout({
                                     {(['3D', '7D', '30D', '90D'] as TimeRange[]).map((range) => (
                                         <button
                                             key={range}
-                                            onClick={() => setTimeRange(range)}
+                                            onClick={() => {
+                                                setTimeRange(range)
+                                                setDetailView(null)
+                                            }}
                                             className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${timeRange === range
                                                 ? 'bg-white/10 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
                                                 : 'text-gray-500 hover:text-gray-300'
@@ -322,6 +410,7 @@ export default function DashboardLayout({
                                 totals={totals}
                                 currentMetric={currentMetric}
                                 onSelectMetric={setCurrentMetric}
+                                platform={platform}
                             />
                         )}
 
@@ -341,6 +430,7 @@ export default function DashboardLayout({
                                             setViewHistory(null)
                                         }
                                     }}
+                                    platform={platform}
                                 />
                             ) : chartViewMode === 'grid' ? (
                                 <SmallMultiplesGrid

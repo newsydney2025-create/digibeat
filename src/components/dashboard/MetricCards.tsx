@@ -7,6 +7,7 @@ interface MetricCardsProps {
     totals: DashboardMetrics
     currentMetric: MetricKey
     onSelectMetric: (metric: MetricKey) => void
+    platform: 'tiktok' | 'instagram'
 }
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -32,15 +33,25 @@ const ICONS: Record<string, React.ReactNode> = {
     ),
 }
 
+// ... icons ...
+
+
 export default function MetricCards({
     totals,
     currentMetric,
     onSelectMetric,
+    platform,
 }: MetricCardsProps) {
+    const visibleMetrics = METRICS_CONFIG.filter(m =>
+        platform === 'instagram' ? m.key !== 'shareCount' : true
+    )
+
     return (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 shrink-0">
-            {METRICS_CONFIG.map((metric) => {
+        <div className={`grid gap-4 mb-6 shrink-0 ${platform === 'instagram' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2 md:grid-cols-4'
+            }`}>
+            {visibleMetrics.map((metric) => {
                 const isActive = currentMetric === metric.key
+                // ... rest of component using visibleMetrics instead of METRICS_CONFIG map ...
                 const value = totals[metric.key]
 
                 return (

@@ -235,8 +235,8 @@ export default function TimelineChart({
                 name: account.username,
                 type: 'line',
                 smooth: true,
-                showSymbol: !showAverage || isHovered,
-                symbolSize: isHovered ? 8 : 4,
+                showSymbol: !showAverage || isHovered || uniqueDates.length === 1, // FORCE symbol if only 1 point
+                symbolSize: isHovered ? 8 : (uniqueDates.length === 1 ? 6 : 4),
                 lineStyle: {
                     width: isHovered ? 4 : (showAverage ? 1.5 : 3),
                     color: isGhosted ? ghostColor : (isFaded ? `hsla(${hue}, 30%, 50%, 0.2)` : normalColor),
@@ -313,7 +313,7 @@ export default function TimelineChart({
                     data: avgAnomalies.map(a => ({
                         coord: [a.xAxis, a.yAxis],
                         itemStyle: {
-                            color: a.type === 'spike' ? '#22c55e' : '#ef4444',
+                            color: a.type === 'spike' ? '#22c55e' : '#ef4444', // <--- Fixed line
                             borderColor: '#fff',
                             borderWidth: 2
                         },
@@ -355,7 +355,6 @@ export default function TimelineChart({
                 padding: 0, // We'll handle padding in formatter
                 textStyle: { color: '#fff', fontSize: 12 },
 
-                // Lock tooltip to the snapped axis position (not following mouse)
                 // Lock tooltip to the snapped axis position (not following mouse)
                 position: function (point: number[], params: any, dom: HTMLElement, rect: any, size: any) {
                     // Fallback if chart instance isn't ready
@@ -468,7 +467,7 @@ export default function TimelineChart({
             },
             xAxis: {
                 type: 'category',
-                boundaryGap: false,
+                boundaryGap: uniqueDates.length === 1 ? ['20%', '20%'] : false, // Fix: Ensure single point is centered
                 data: uniqueDates.map(d => formatDateSimple(d)),
                 axisLine: { lineStyle: { color: '#333' } },
                 axisLabel: { color: '#666', fontSize: 10 },
@@ -477,6 +476,7 @@ export default function TimelineChart({
                 type: 'value',
                 splitLine: { lineStyle: { color: '#222' } },
                 axisLabel: { color: '#666', fontSize: 10, formatter: (val: number) => formatNumber(val) },
+                minInterval: 1 // Ensure at least 0-1 range even if value is 0
             },
             dataZoom: [
                 {

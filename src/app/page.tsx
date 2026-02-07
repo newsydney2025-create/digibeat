@@ -26,6 +26,7 @@ const MOCK_ACCOUNTS: TikTokAccount[] = [
         is_active: true,
         last_synced_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
+        website: 'https://digipark.com',
     },
     {
         id: '2',
@@ -40,6 +41,7 @@ const MOCK_ACCOUNTS: TikTokAccount[] = [
         is_active: true,
         last_synced_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
+        website: null,
     },
     {
         id: '3',
@@ -54,7 +56,35 @@ const MOCK_ACCOUNTS: TikTokAccount[] = [
         is_active: true,
         last_synced_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
+        website: 'https://futurecreators.io',
     },
+]
+
+const MOCK_INSTAGRAM_ACCOUNTS: InstagramAccount[] = [
+    {
+        id: 'ig-1',
+        instagram_id: 'inst_1',
+        username: 'visual_vibes',
+        full_name: 'Visual Vibes Studio',
+        avatar_url: null,
+        website: 'https://visualvibes.studio',
+        is_active: true,
+        last_synced_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+    },
+    {
+        id: 'ig-2',
+        instagram_id: 'inst_2',
+        username: 'urban_explorer',
+        full_name: 'Urban Explorer',
+        avatar_url: null,
+        website: null,
+        is_active: true,
+        last_synced_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+    }
 ]
 
 // Generate mock videos
@@ -123,6 +153,41 @@ function generateMockVideos(): TikTokVideo[] {
     return videos
 }
 
+function generateMockReels(): InstagramReel[] {
+    const reels: InstagramReel[] = []
+    const now = Date.now()
+
+    MOCK_INSTAGRAM_ACCOUNTS.forEach((account, idx) => {
+        for (let i = 0; i < 10; i++) {
+            const daysAgo = Math.floor(Math.random() * 30)
+            const createTime = new Date(now - daysAgo * 24 * 60 * 60 * 1000)
+
+            reels.push({
+                id: `reel-${account.id}-${i}`,
+                reel_id: `ig-${account.id}-${i}`,
+                short_code: `CODE${i}`,
+                account_id: account.id,
+                caption: `Instagram Reel content #${i} 📸`,
+                hashtags: ['instagram', 'reels', 'viral'],
+                mentions: [],
+                url: `https://instagram.com/p/CODE${i}`,
+                likes_count: Math.floor(Math.random() * 10000),
+                comments_count: Math.floor(Math.random() * 500),
+                video_play_count: Math.floor(Math.random() * 50000),
+                video_duration: 15 + Math.random() * 45,
+                thumbnail_url: null,
+                video_url: null,
+                is_pinned: false,
+                is_paid_partnership: false,
+                timestamp: createTime.toISOString(),
+                created_at: createTime.toISOString(),
+                updated_at: createTime.toISOString(),
+            })
+        }
+    })
+    return reels
+}
+
 export default function Home() {
     const [view, setView] = useState<ViewState>('landing')
     const [sessionId, setSessionId] = useState('')
@@ -161,13 +226,22 @@ export default function Home() {
                 fetchInstagramAccounts(),
                 fetchInstagramReels(),
             ])
-            setInstagramAccounts(igAccounts)
-            setInstagramReels(igReels)
+
+            if (igAccounts.length > 0) {
+                setInstagramAccounts(igAccounts)
+                setInstagramReels(igReels)
+            } else {
+                setInstagramAccounts(MOCK_INSTAGRAM_ACCOUNTS)
+                setInstagramReels(generateMockReels())
+            }
+
         } catch (error) {
             console.error('Error fetching data:', error)
             // Fall back to mock data
             setAccounts(MOCK_ACCOUNTS)
             setVideos(generateMockVideos())
+            setInstagramAccounts(MOCK_INSTAGRAM_ACCOUNTS)
+            setInstagramReels(generateMockReels())
         }
 
         setView('dashboard')

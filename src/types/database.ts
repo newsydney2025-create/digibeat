@@ -154,6 +154,7 @@ export type Database = {
                     signature: string | null
                     username: string
                     video_count: number
+                    website: string | null
                 }
                 Insert: {
                     avatar_url?: string | null
@@ -168,6 +169,7 @@ export type Database = {
                     signature?: string | null
                     username: string
                     video_count?: number
+                    website?: string | null
                 }
                 Update: {
                     avatar_url?: string | null
@@ -182,6 +184,7 @@ export type Database = {
                     signature?: string | null
                     username?: string
                     video_count?: number
+                    website?: string | null
                 }
                 Relationships: []
             }
@@ -265,6 +268,156 @@ export type Database = {
                     }
                 ]
             }
+            instagram_accounts: {
+                Row: {
+                    id: string
+                    instagram_id: string
+                    username: string
+                    full_name: string | null
+                    avatar_url: string | null
+                    is_active: boolean
+                    last_synced_at: string | null
+                    created_at: string
+                    updated_at: string
+                    website: string | null
+                }
+                Insert: {
+                    id?: string
+                    instagram_id: string
+                    username: string
+                    full_name?: string | null
+                    avatar_url?: string | null
+                    is_active?: boolean
+                    last_synced_at?: string | null
+                    created_at?: string
+                    updated_at?: string
+                    website?: string | null
+                }
+                Update: {
+                    id?: string
+                    instagram_id?: string
+                    username?: string
+                    full_name?: string | null
+                    avatar_url?: string | null
+                    is_active?: boolean
+                    last_synced_at?: string | null
+                    created_at?: string
+                    updated_at?: string
+                    website?: string | null
+                }
+                Relationships: []
+            }
+            instagram_reels: {
+                Row: {
+                    id: string
+                    account_id: string | null
+                    short_code: string
+                    caption: string | null
+                    video_play_count: number
+                    likes_count: number
+                    comments_count: number
+                    thumbnail_url: string | null
+                    timestamp: string | null
+                    created_at: string
+                    hashtags: string[] | null
+                }
+                Insert: {
+                    id?: string
+                    account_id?: string | null
+                    short_code: string
+                    caption?: string | null
+                    video_play_count?: number
+                    likes_count?: number
+                    comments_count?: number
+                    thumbnail_url?: string | null
+                    timestamp?: string | null
+                    created_at?: string
+                    hashtags?: string[] | null
+                }
+                Update: {
+                    id?: string
+                    account_id?: string | null
+                    short_code?: string
+                    caption?: string | null
+                    video_play_count?: number
+                    likes_count?: number
+                    comments_count?: number
+                    thumbnail_url?: string | null
+                    timestamp?: string | null
+                    created_at?: string
+                    hashtags?: string[] | null
+                }
+                Relationships: []
+            }
+            tiktok_video_history: {
+                Row: {
+                    id: string
+                    video_id: string
+                    account_id: string
+                    date: string
+                    play_count: number
+                    digg_count: number
+                    comment_count: number
+                    share_count: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    video_id: string
+                    account_id: string
+                    date: string
+                    play_count?: number
+                    digg_count?: number
+                    comment_count?: number
+                    share_count?: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    video_id?: string
+                    account_id?: string
+                    date?: string
+                    play_count?: number
+                    digg_count?: number
+                    comment_count?: number
+                    share_count?: number
+                    created_at?: string
+                }
+                Relationships: []
+            }
+            instagram_reel_history: {
+                Row: {
+                    id: string
+                    reel_id: string
+                    account_id: string
+                    date: string
+                    video_play_count: number
+                    likes_count: number
+                    comments_count: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    reel_id: string
+                    account_id: string
+                    date: string
+                    video_play_count?: number
+                    likes_count?: number
+                    comments_count?: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    reel_id?: string
+                    account_id?: string
+                    date?: string
+                    video_play_count?: number
+                    likes_count?: number
+                    comments_count?: number
+                    created_at?: string
+                }
+                Relationships: []
+            }
         }
         Views: {}
         Functions: {}
@@ -329,6 +482,7 @@ export interface InstagramAccount {
     username: string
     full_name: string | null
     avatar_url: string | null
+    website: string | null
     is_active: boolean
     last_synced_at: string | null
     created_at: string

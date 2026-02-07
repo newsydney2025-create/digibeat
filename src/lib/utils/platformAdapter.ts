@@ -43,6 +43,7 @@ export function adaptInstagramAccounts(accounts: InstagramAccount[]): TikTokAcco
         heart_count: 0,
         video_count: 0,
         signature: null,
+        website: account.website, // Mapped website
         is_active: account.is_active,
         last_synced_at: account.last_synced_at,
         created_at: account.created_at,
@@ -80,11 +81,15 @@ export function generateInstagramSnapshots(reels: InstagramReel[], accounts: Ins
             date.setDate(date.getDate() + i)
             const dateStr = date.toISOString().split('T')[0]
 
-            // Calculate cumulative stats for this date (include all videos posted on or before this date)
-            const activeReels = accountVideos.filter(v => {
-                const postDate = new Date(v.timestamp || v.created_at)
-                return postDate <= date
-            })
+            // Calculate cumulative stats for this date 
+            // Logic: Filter videos posted on/before date, Sort by Newest, Take Top 20 (matching backend logic)
+            const activeReels = accountVideos
+                .filter(v => {
+                    const postDate = new Date(v.timestamp || v.created_at)
+                    return postDate <= date
+                })
+                .sort((a, b) => new Date(b.timestamp || b.created_at).getTime() - new Date(a.timestamp || a.created_at).getTime())
+                .slice(0, 20)
 
             const totalViews = activeReels.reduce((sum, v) => sum + v.video_play_count, 0)
             const totalLikes = activeReels.reduce((sum, v) => sum + v.likes_count, 0)

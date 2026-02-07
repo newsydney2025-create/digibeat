@@ -8,12 +8,13 @@ interface DailyVideoListProps {
     username: string
     videos: any[]
     onBack: () => void
+    platform: 'tiktok' | 'instagram'
 }
 
-export default function DailyVideoList({ date, username, videos, onBack }: DailyVideoListProps) {
+export default function DailyVideoList({ date, username, videos, onBack, platform }: DailyVideoListProps) {
     return (
         <div className="w-full flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
-            {/* Header / Navigation */}
+            {/* ... (keep header mostly same) ... */}
             <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
                 <div className="flex items-center gap-3">
                     <button
@@ -47,17 +48,25 @@ export default function DailyVideoList({ date, username, videos, onBack }: Daily
                             <th className="py-2 text-right">Views</th>
                             <th className="py-2 text-right">Likes</th>
                             <th className="py-2 text-right">Comments</th>
-                            <th className="py-2 text-right pr-2">Shares</th>
+                            {platform !== 'instagram' && (
+                                <th className="py-2 text-right pr-2">Shares</th>
+                            )}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
                         {videos.map((item) => (
                             <tr key={item.video_id} className="group hover:bg-white/5 transition-colors">
+                                {/* ... (video cell) ... */}
                                 <td className="py-3 pl-2">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-10 bg-gray-800 rounded overflow-hidden shrink-0 border border-white/10 group-hover:border-cyan-500/50 transition-colors relative">
                                             {item.cover ? (
-                                                <img src={item.cover} alt="Cover" className="w-full h-full object-cover" />
+                                                <img
+                                                    src={item.cover && item.cover.includes('cdninstagram.com') ? `/api/proxy-image?url=${encodeURIComponent(item.cover)}` : item.cover}
+                                                    alt="Cover"
+                                                    referrerPolicy="no-referrer"
+                                                    className="w-full h-full object-cover"
+                                                />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center text-gray-600">
                                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>
@@ -88,9 +97,11 @@ export default function DailyVideoList({ date, username, videos, onBack }: Daily
                                 <td className="py-3 text-right font-mono text-gray-300">
                                     +{formatNumber(item.stats.comments)}
                                 </td>
-                                <td className="py-3 text-right font-mono text-gray-300 pr-2">
-                                    +{formatNumber(item.stats.shares)}
-                                </td>
+                                {platform !== 'instagram' && (
+                                    <td className="py-3 text-right font-mono text-gray-300 pr-2">
+                                        +{formatNumber(item.stats.shares)}
+                                    </td>
+                                )}
                             </tr>
                         ))}
                         {videos.length === 0 && (

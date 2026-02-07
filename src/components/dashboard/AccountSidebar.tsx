@@ -65,10 +65,10 @@ export default function AccountSidebar({
                 onMouseEnter={() => onAccountHover?.(account.id)}
                 onMouseLeave={() => onAccountHover?.(null)}
                 className={`p-2 rounded-lg border transition-all cursor-pointer group relative overflow-hidden ${isHovered
-                        ? 'bg-cyan-500/20 border-cyan-500/50 scale-[1.02]'
-                        : isSelected
-                            ? 'bg-white/5 border-white/10'
-                            : 'bg-transparent border-transparent opacity-50'
+                    ? 'bg-cyan-500/20 border-cyan-500/50 scale-[1.02]'
+                    : isSelected
+                        ? 'bg-white/5 border-white/10'
+                        : 'bg-transparent border-transparent opacity-50'
                     }`}
             >
                 <div
@@ -79,10 +79,13 @@ export default function AccountSidebar({
                     }}
                 ></div>
                 <div className="flex items-center gap-2 pl-2">
+                    <div className="text-[9px] font-mono text-gray-500 w-4 text-right shrink-0">
+                        {(index + 1).toString().padStart(2, '0')}
+                    </div>
                     <div
                         className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold border transition-all ${isHovered
-                                ? 'bg-cyan-500/30 border-cyan-400 text-cyan-300'
-                                : 'bg-gray-800 border-white/10 text-gray-400'
+                            ? 'bg-cyan-500/30 border-cyan-400 text-cyan-300'
+                            : 'bg-gray-800 border-white/10 text-gray-400'
                             }`}
                     >
                         {account.username.substring(0, 2).toUpperCase()}
@@ -92,8 +95,21 @@ export default function AccountSidebar({
                             }`}>
                             @{account.username}
                         </div>
-                        <div className="text-[8px] text-gray-600 font-mono">
-                            {formatNumber(getAccountTotal(account.id))}
+                        <div className="flex items-center gap-2">
+                            <div className="text-[8px] text-gray-600 font-mono">
+                                {formatNumber(getAccountTotal(account.id))}
+                            </div>
+                            {account.website && (
+                                <a
+                                    href={account.website}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[8px] text-cyan-500 hover:text-cyan-300 hover:underline truncate max-w-[80px]"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    🔗 Link
+                                </a>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -156,8 +172,8 @@ export default function AccountSidebar({
                                         onSelectGroup?.(group.id)
                                     }}
                                     className={`text-[8px] px-1.5 py-0.5 rounded transition-colors ${allGroupSelected
-                                            ? 'bg-cyan-500/30 text-cyan-300'
-                                            : 'bg-white/10 text-gray-400 hover:text-white'
+                                        ? 'bg-cyan-500/30 text-cyan-300'
+                                        : 'bg-white/10 text-gray-400 hover:text-white'
                                         }`}
                                 >
                                     {allGroupSelected ? '✓' : 'SEL'}

@@ -1,0 +1,20 @@
+[2026-02-03T12:57:28.603Z] Token loaded: apify...
+[2026-02-03T12:57:28.607Z] Starting scraper for hellen_nguyen01...
+[2026-02-03T12:57:29.884Z] Run started with ID: jmgYcpgU1D5aL4Beh
+[2026-02-03T12:57:33.234Z] Status: SUCCEEDED
+[2026-02-03T12:57:33.508Z] Items found: 1
+[2026-02-03T12:57:33.509Z] Data saved to C:\Users\jason\.gemini\antigravity\scratch\digibeat\scripts\debug_apify_data.json
+[2026-02-03T13:15:30.449Z] Token loaded: apify...
+[2026-02-03T13:15:30.465Z] Starting scraper for https://www.instagram.com/hellen_nguyen01/ using directUrls...
+[2026-02-03T13:15:31.775Z] Run started with ID: skyywsek553xDENk0
+[2026-02-03T13:15:38.120Z] Status: RUNNING
+[2026-02-03T13:15:43.797Z] Status: RUNNING
+[2026-02-03T13:15:49.524Z] Status: RUNNING
+[2026-02-03T13:15:56.037Z] Status: RUNNING
+[2026-02-03T13:16:01.873Z] Status: RUNNING
+[2026-02-03T13:16:07.710Z] Status: RUNNING
+[2026-02-03T13:16:13.546Z] Status: RUNNING
+[2026-02-03T13:16:24.970Z] Status: SUCCEEDED
+[2026-02-03T13:16:25.569Z] Items found: 5
+[2026-02-03T13:16:25.573Z] Data saved to C:\Users\jason\.gemini\antigravity\scratch\digibeat\scripts\debug_apify_data.json
+[2026-02-03T13:16:25.574Z] First item sample: {"id":"3821190157903739041","type":"Video","shortCode":"DUHmDP9Ejih","caption":"🌟 Just spent an incredible day at Digipark's grand open day and WOW, I was completely transported! From the moment I st...

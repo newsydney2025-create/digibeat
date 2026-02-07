@@ -252,64 +252,131 @@ export async function fetchDailyVideoBreakdown(
 ): Promise<any[]> {
     const supabase = await createClient()
 
-    // 1. Get the account username
-    const { data: account } = await supabase
+    // 1. Try to find TikTok Account
+    const { data: tkAccount } = await supabase
         .from('tiktok_accounts')
         .select('username')
         .eq('id', accountId)
         .single()
 
-    if (!account) return []
+    let videos: any[] = []
+    let platform = 'tiktok'
 
-    // 2. Fetch recent videos for this account (simulating "active" videos)
-    const { data: videos } = await supabase
-        .from('tiktok_videos')
-        .select('*')
-        .eq('account_id', accountId)
-        .order('create_time', { ascending: false }) // Sort by new
-        .limit(20)
+    // If TikTok account found, fetch from tiktok_videos
+    if (tkAccount) {
+        const { data: tkVideos } = await supabase
+            .from('tiktok_videos')
+            .select('*')
+            .eq('account_id', accountId)
+            .order('create_time', { ascending: false })
+            .limit(20)
+        videos = tkVideos || []
+    } else {
+        // 2. Try to find Instagram Account
+        const { data: igAccount } = await supabase
+            .from('instagram_accounts')
+            .select('username')
+            .eq('id', accountId)
+            .single()
+
+        if (igAccount) {
+            platform = 'instagram'
+            // Fetch Instagram Reels
+            const { data: igReels } = await supabase
+                .from('instagram_reels')
+                .select('*')
+                .eq('account_id', accountId)
+                .order('timestamp', { ascending: false })
+                .limit(20)
+            videos = igReels || []
+        }
+    }
 
     if (!videos || videos.length === 0) return []
 
-    // 3. Simulate breakdown
-    // Distribute the dailyGains across these videos
-    // We use a weighted random approach where newer/more popular videos get more traffic
+    // 3. Real daily breakdown from history tables
+    const historyTable = platform === 'instagram' ? 'instagram_reel_history' : 'tiktok_video_history'
+    const idField = platform === 'instagram' ? 'reel_id' : 'video_id'
 
-    // Calculate weights
-    const videosWithWeights = videos.map((video: any, index: number) => {
-        // Weight based on recency (index) and existing popularity
-        // Base weight from index (newer = higher)
-        let weight = Math.max(1, 20 - index)
+    // Find previous date
+    const previousDate = new Date(date)
+    previousDate.setDate(previousDate.getDate() - 1)
+    const prevDateStr = previousDate.toISOString().split('T')[0]
 
-        // Boost if it's already a high performing video
-        if (video.play_count > 100000) weight *= 2
+    // Fetch history for selected date and previous date
+    // We need to fetch ALL videos' history for this account to match the videos list
+    const { data: historyData } = await supabase
+        .from(historyTable as any)
+        .select('*')
+        .eq('account_id', accountId)
+        .in('date', [date, prevDateStr])
+        .order('date', { ascending: true })
 
-        return { video, weight }
-    })
+    const historyMap = new Map<string, { current: any, prev: any }>()
 
-    const totalWeight = videosWithWeights.reduce((sum, item) => sum + item.weight, 0)
+    if (historyData) {
+        historyData.forEach((record: any) => {
+            const vid = record[idField]
+            if (!historyMap.has(vid)) historyMap.set(vid, { current: null, prev: null })
 
-    // Distribute metrics
-    return videosWithWeights.map(item => {
-        const ratio = item.weight / totalWeight
+            if (record.date === date) historyMap.get(vid)!.current = record
+            if (record.date === prevDateStr) historyMap.get(vid)!.prev = record
+        })
+    }
 
-        // Add some randomness to the ratio so metrics aren't perfectly correlated (optional but better)
-        // For simplicity, we use the same ratio for all metrics, maybe slight variation
+    // Map videos to their daily stats
+    return videos.map((video: any) => {
+        const videoId = platform === 'instagram' ? video.reel_id : video.video_id
+        const history = historyMap.get(videoId)
 
-        return {
-            video_id: item.video.video_id,
-            title: item.video.description,
-            cover: item.video.cover_url,
-            web_video_url: item.video.web_video_url,
-            created_at: item.video.create_time,
-            stats: {
-                views: Math.floor(dailyGains.views * ratio),
-                likes: Math.floor(dailyGains.likes * ratio),
-                comments: Math.floor(dailyGains.comments * ratio),
-                shares: Math.floor(dailyGains.shares * ratio)
+        let stats = {
+            views: 0,
+            likes: 0,
+            comments: 0,
+            shares: 0
+        }
+
+        // Only calculate if we have history. 
+        // Strict interpretation: "No fake data". If we don't have TODAY's history record, we show 0 or N/A.
+        // If we have Today but no Yesterday, gain is technically Today's total (if new) or Unknown (if old).
+        // For new system, we assume 0 baseline if missing previous.
+
+        if (history && history.current) {
+            const curr = history.current
+            const prev = history.prev || { play_count: 0, digg_count: 0, comment_count: 0, share_count: 0, video_play_count: 0, likes_count: 0, comments_count: 0 }
+
+            if (platform === 'instagram') {
+                stats = {
+                    views: Math.max(0, (curr.video_play_count || 0) - (prev.video_play_count || 0)),
+                    likes: Math.max(0, (curr.likes_count || 0) - (prev.likes_count || 0)),
+                    comments: Math.max(0, (curr.comments_count || 0) - (prev.comments_count || 0)),
+                    shares: 0 // Instagram doesn't have shares in history yet or disabled
+                }
+            } else {
+                stats = {
+                    views: Math.max(0, (curr.play_count || 0) - (prev.play_count || 0)),
+                    likes: Math.max(0, (curr.digg_count || 0) - (prev.digg_count || 0)),
+                    comments: Math.max(0, (curr.comment_count || 0) - (prev.comment_count || 0)),
+                    shares: Math.max(0, (curr.share_count || 0) - (prev.share_count || 0))
+                }
             }
         }
-    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) // Return sorted by create time as requested
+
+        // Map fields based on platform
+        const title = platform === 'instagram' ? video.caption : video.description
+        const cover = platform === 'instagram' ? video.thumbnail_url : video.cover_url
+        const webVideoUrl = platform === 'instagram' ? (video.url || video.video_url) : video.web_video_url
+        const createdAt = platform === 'instagram' ? (video.timestamp || video.created_at) : (video.create_time || video.created_at)
+
+        return {
+            video_id: videoId || 'unknown',
+            title: title,
+            cover: cover,
+            web_video_url: webVideoUrl,
+            created_at: createdAt,
+            stats: stats
+        }
+    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 }
 
 // ==================== Account Groups ====================
@@ -438,5 +505,3 @@ export async function deleteAccountGroup(groupId: string): Promise<boolean> {
 
     return true
 }
-
-
