@@ -33,6 +33,7 @@ export default function TimelineChart({
     const chartRef = useRef<HTMLDivElement>(null)
     const chartInstance = useRef<echarts.ECharts | null>(null)
     const lockedDataIndex = useRef<number | null>(null) // For axis lock when hovering tooltip
+    const displayToOriginalDateMap = useRef<Record<string, string>>({}) // Map M/D display format to YYYY-MM-DD
 
     // Handle Resize
     useEffect(() => {
@@ -76,7 +77,9 @@ export default function TimelineChart({
             // Add click event for drill-down
             chartInstance.current.on('click', (params: any) => {
                 if (onDataClick && params.seriesName && params.seriesName !== 'Average' && params.name) {
-                    onDataClick(params.seriesName, params.name) // params.name is the x-axis value (date)
+                    // Convert display date (M/D) back to original format (YYYY-MM-DD)
+                    const originalDate = displayToOriginalDateMap.current[params.name] || params.name
+                    onDataClick(params.seriesName, originalDate)
                 }
             })
 
@@ -140,6 +143,13 @@ export default function TimelineChart({
         const uniqueDates = Array.from(new Set(filteredSnapshots.map((s) => s.date))).sort(
             (a, b) => new Date(a).getTime() - new Date(b).getTime()
         )
+
+        // Build mapping from display format to original format
+        const displayDateMap: Record<string, string> = {}
+        uniqueDates.forEach(d => {
+            displayDateMap[formatDateSimple(d)] = d
+        })
+        displayToOriginalDateMap.current = displayDateMap
 
         // 3. Build date->value maps for each account
         const accountDataMaps: Record<string, Record<string, number>> = {}
@@ -324,9 +334,11 @@ export default function TimelineChart({
         }
 
         // Bind global function for tooltip clicking
-        ; (window as any).chartDrillDown = (username: string, date: string) => {
+        ; (window as any).chartDrillDown = (username: string, displayDate: string) => {
             if (onDataClick) {
-                onDataClick(username, date)
+                // Convert display date (M/D) back to original format (YYYY-MM-DD)
+                const originalDate = displayToOriginalDateMap.current[displayDate] || displayDate
+                onDataClick(username, originalDate)
             }
         }
 
