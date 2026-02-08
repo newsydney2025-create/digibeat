@@ -149,13 +149,73 @@ export async function POST(request: NextRequest) {
     }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+    // Vercel cron sends GET requests with specific headers
+    // Check if this is a cron request
+    const authHeader = request.headers.get('authorization')
+    const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}` ||
+        request.headers.get('x-vercel-cron') === '1'
+
+    if (isCron) {
+        // Execute sync for cron job
+        console.log('Cron job triggered at:', new Date().toISOString())
+
+        const apiToken = process.env.APIFY_API_TOKEN
+        if (!apiToken) {
+            return NextResponse.json({ error: 'APIFY_API_TOKEN not configured' }, { status: 500 })
+        }
+
+        try {
+            const supabase = await createClient()
+            const results = {
+                tiktok: { processed: 0, snapshots: 0 },
+                instagram: { processed: 0, snapshots: 0 },
+                errors: [] as string[]
+            }
+
+            // Run TikTok sync
+            if (SCRAPING_TARGETS.tiktok.length > 0) {
+                try {
+                    const tkResults = await runTikTokSync(supabase, apiToken, SCRAPING_TARGETS.tiktok, true)
+                    results.tiktok = tkResults
+                } catch (e) {
+                    console.error('TikTok sync failed:', e)
+                    results.errors.push(`TikTok: ${e instanceof Error ? e.message : String(e)}`)
+                }
+            }
+
+            // Run Instagram sync
+            if (SCRAPING_TARGETS.instagram.length > 0) {
+                try {
+                    const igResults = await runInstagramSync(supabase, apiToken, SCRAPING_TARGETS.instagram, true)
+                    results.instagram = igResults
+                } catch (e) {
+                    console.error('Instagram sync failed:', e)
+                    results.errors.push(`Instagram: ${e instanceof Error ? e.message : String(e)}`)
+                }
+            }
+
+            console.log('Cron sync completed:', results)
+            return NextResponse.json({ success: true, results, triggered_at: new Date().toISOString() })
+        } catch (error) {
+            console.error('Cron sync error:', error)
+            return NextResponse.json(
+                { error: error instanceof Error ? error.message : 'Unknown error' },
+                { status: 500 }
+            )
+        }
+    }
+
+    // Regular GET request - return info
     return NextResponse.json({
         message: 'Sync API',
         targets: SCRAPING_TARGETS,
         usage: 'POST /api/sync { "platform": "tiktok" | "instagram" | "all" }'
     })
 }
+
+// Extend timeout for Vercel functions (Pro plan: up to 900s)
+export const maxDuration = 300  // 5 minutes
 
 // --- Helpers ---
 
