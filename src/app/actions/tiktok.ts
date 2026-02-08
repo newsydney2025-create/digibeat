@@ -314,14 +314,21 @@ export async function fetchDailyVideoBreakdown(
 
     const historyMap = new Map<string, { current: any, prev: any }>()
 
+    // Debug logging
+    console.log(`[fetchDailyVideoBreakdown] accountId: ${accountId}, date: ${date}, prevDateStr: ${prevDateStr}`)
+    console.log(`[fetchDailyVideoBreakdown] historyData count: ${historyData?.length || 0}`)
+
     if (historyData) {
         historyData.forEach((record: any) => {
             const vid = record[idField]
             if (!historyMap.has(vid)) historyMap.set(vid, { current: null, prev: null })
 
-            if (record.date === date) historyMap.get(vid)!.current = record
-            if (record.date === prevDateStr) historyMap.get(vid)!.prev = record
+            // Convert record.date to string for consistent comparison (Supabase returns YYYY-MM-DD string)
+            const recordDateStr = String(record.date)
+            if (recordDateStr === date) historyMap.get(vid)!.current = record
+            if (recordDateStr === prevDateStr) historyMap.get(vid)!.prev = record
         })
+        console.log(`[fetchDailyVideoBreakdown] historyMap size: ${historyMap.size}`)
     }
 
     // Map videos to their daily stats
