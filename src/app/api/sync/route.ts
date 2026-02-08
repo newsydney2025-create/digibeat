@@ -451,31 +451,17 @@ async function generateSnapshots(supabase: any, accountVideosMap: Map<string, an
     for (let i = 0; i < accountIds.length; i += chunkSize) {
         const chunk = accountIds.slice(i, i + chunkSize)
         await Promise.all(chunk.map(async (accountId) => {
-            // Fetch Top 20 from DB (including the newly synced one and older ones)
-            // This prevents "Chart Drop" when only scraping 1 video.
-            const table = platform === 'instagram' ? 'instagram_reels' : 'tiktok_videos'
-            const sortColumn = platform === 'instagram' ? 'timestamp' : 'create_time'
+            // Use videos from current sync directly (not from accumulated DB)
+            // This ensures daily_snapshots reflects exactly what was crawled today
+            const videos = accountVideosMap.get(accountId) || []
 
-
-
-            const selectString = platform === 'instagram'
-                ? 'video_play_count, likes_count, comments_count'
-                : 'play_count, digg_count, comment_count, share_count'
-
-            const { data: topVideos } = await supabase
-                .from(table)
-                .select(selectString)
-                .eq('account_id', accountId)
-                .order(sortColumn, { ascending: false })
-                .limit(20)
-
-            if (topVideos && topVideos.length > 0) {
-                // Map IG fields to generic fields
-                const mappedVideos = topVideos.map((v: any) => ({
+            if (videos.length > 0) {
+                // Map fields to generic format (handles both TikTok and Instagram)
+                const mappedVideos = videos.map((v: any) => ({
                     play_count: v.play_count ?? v.video_play_count ?? 0,
                     digg_count: v.digg_count ?? v.likes_count ?? 0,
                     comment_count: v.comment_count ?? v.comments_count ?? 0,
-                    share_count: v.share_count ?? 0 // IG has no share count in scraped data usually
+                    share_count: v.share_count ?? 0
                 }))
 
                 const totals = mappedVideos.reduce((acc: any, v: any) => ({
@@ -492,7 +478,7 @@ async function generateSnapshots(supabase: any, accountVideosMap: Map<string, an
                     total_likes: totals.likes,
                     total_comments: totals.comments,
                     total_shares: totals.shares,
-                    video_count: topVideos.length,
+                    video_count: videos.length,
                     created_at: new Date().toISOString()
                 }, { onConflict: 'account_id, date' })
                 count++

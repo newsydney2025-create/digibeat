@@ -252,138 +252,100 @@ export async function fetchDailyVideoBreakdown(
 ): Promise<any[]> {
     const supabase = await createClient()
 
-    // 1. Try to find TikTok Account
+    // 1. Determine platform by checking account tables
     const { data: tkAccount } = await supabase
         .from('tiktok_accounts')
         .select('username')
         .eq('id', accountId)
         .single()
 
-    let videos: any[] = []
-    let platform = 'tiktok'
-
-    // If TikTok account found, fetch from tiktok_videos
-    if (tkAccount) {
-        const { data: tkVideos } = await supabase
-            .from('tiktok_videos')
-            .select('*')
-            .eq('account_id', accountId)
-            .order('create_time', { ascending: false })
-            .limit(20)
-        videos = tkVideos || []
-    } else {
-        // 2. Try to find Instagram Account
-        const { data: igAccount } = await supabase
-            .from('instagram_accounts')
-            .select('username')
-            .eq('id', accountId)
-            .single()
-
-        if (igAccount) {
-            platform = 'instagram'
-            // Fetch Instagram Reels
-            const { data: igReels } = await supabase
-                .from('instagram_reels')
-                .select('*')
-                .eq('account_id', accountId)
-                .order('timestamp', { ascending: false })
-                .limit(20)
-            videos = igReels || []
-        }
-    }
-
-    if (!videos || videos.length === 0) return []
-
-    // 3. Real daily breakdown from history tables
+    const platform = tkAccount ? 'tiktok' : 'instagram'
     const historyTable = platform === 'instagram' ? 'instagram_reel_history' : 'tiktok_video_history'
+    const videosTable = platform === 'instagram' ? 'instagram_reels' : 'tiktok_videos'
     const idField = platform === 'instagram' ? 'reel_id' : 'video_id'
 
-    // Find previous date
+    // 2. Find previous date for gains calculation
     const previousDate = new Date(date)
     previousDate.setDate(previousDate.getDate() - 1)
     const prevDateStr = previousDate.toISOString().split('T')[0]
 
-    // Fetch history for selected date and previous date
-    // We need to fetch ALL videos' history for this account to match the videos list
-    const { data: historyData } = await supabase
+    // 3. Fetch history records for selected date (this defines which videos to show)
+    const { data: currentDayHistory } = await supabase
         .from(historyTable as any)
         .select('*')
         .eq('account_id', accountId)
-        .in('date', [date, prevDateStr])
-        .order('date', { ascending: true })
+        .eq('date', date)
 
-    const historyMap = new Map<string, { current: any, prev: any }>()
-
-    // Debug logging
-    console.log(`[fetchDailyVideoBreakdown] accountId: ${accountId}, date: ${date}, prevDateStr: ${prevDateStr}`)
-    console.log(`[fetchDailyVideoBreakdown] historyData count: ${historyData?.length || 0}`)
-
-    if (historyData) {
-        historyData.forEach((record: any) => {
-            const vid = record[idField]
-            if (!historyMap.has(vid)) historyMap.set(vid, { current: null, prev: null })
-
-            // Convert record.date to string for consistent comparison (Supabase returns YYYY-MM-DD string)
-            const recordDateStr = String(record.date)
-            if (recordDateStr === date) historyMap.get(vid)!.current = record
-            if (recordDateStr === prevDateStr) historyMap.get(vid)!.prev = record
-        })
-        console.log(`[fetchDailyVideoBreakdown] historyMap size: ${historyMap.size}`)
+    if (!currentDayHistory || currentDayHistory.length === 0) {
+        console.log(`[fetchDailyVideoBreakdown] No history for ${accountId} on ${date}`)
+        return []
     }
 
-    // Map videos to their daily stats
-    return videos.map((video: any) => {
-        const videoId = platform === 'instagram' ? video.reel_id : video.video_id
-        const history = historyMap.get(videoId)
+    // 4. Fetch previous day history for gains calculation
+    const videoIds = currentDayHistory.map((h: any) => h[idField])
+    const { data: prevDayHistory } = await supabase
+        .from(historyTable as any)
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('date', prevDateStr)
+        .in(idField, videoIds)
 
-        let stats = {
-            views: 0,
-            likes: 0,
-            comments: 0,
-            shares: 0
-        }
+    // Build prev day lookup map
+    const prevMap = new Map<string, any>()
+    if (prevDayHistory) {
+        prevDayHistory.forEach((h: any) => prevMap.set(h[idField], h))
+    }
 
-        // Only calculate if we have history. 
-        // Strict interpretation: "No fake data". If we don't have TODAY's history record, we show 0 or N/A.
-        // If we have Today but no Yesterday, gain is technically Today's total (if new) or Unknown (if old).
-        // For new system, we assume 0 baseline if missing previous.
+    // 5. Fetch video metadata for display (title, cover, etc.)
+    const { data: videoMetadata } = await supabase
+        .from(videosTable as any)
+        .select('*')
+        .in(idField, videoIds)
 
-        if (history && history.current) {
-            const curr = history.current
-            const prev = history.prev || { play_count: 0, digg_count: 0, comment_count: 0, share_count: 0, video_play_count: 0, likes_count: 0, comments_count: 0 }
+    const metadataMap = new Map<string, any>()
+    if (videoMetadata) {
+        videoMetadata.forEach((v: any) => metadataMap.set(v[idField], v))
+    }
 
-            if (platform === 'instagram') {
-                stats = {
-                    views: Math.max(0, (curr.video_play_count || 0) - (prev.video_play_count || 0)),
-                    likes: Math.max(0, (curr.likes_count || 0) - (prev.likes_count || 0)),
-                    comments: Math.max(0, (curr.comments_count || 0) - (prev.comments_count || 0)),
-                    shares: 0 // Instagram doesn't have shares in history yet or disabled
-                }
-            } else {
-                stats = {
-                    views: Math.max(0, (curr.play_count || 0) - (prev.play_count || 0)),
-                    likes: Math.max(0, (curr.digg_count || 0) - (prev.digg_count || 0)),
-                    comments: Math.max(0, (curr.comment_count || 0) - (prev.comment_count || 0)),
-                    shares: Math.max(0, (curr.share_count || 0) - (prev.share_count || 0))
-                }
+    // 6. Build result: combine history gains with video metadata
+    return currentDayHistory.map((curr: any) => {
+        const videoId = curr[idField]
+        const prev = prevMap.get(videoId) || {}
+        const metadata = metadataMap.get(videoId) || {}
+
+        let stats: { views: number, likes: number, comments: number, shares: number }
+
+        if (platform === 'instagram') {
+            stats = {
+                views: Math.max(0, (curr.video_play_count || 0) - (prev.video_play_count || 0)),
+                likes: Math.max(0, (curr.likes_count || 0) - (prev.likes_count || 0)),
+                comments: Math.max(0, (curr.comments_count || 0) - (prev.comments_count || 0)),
+                shares: 0
+            }
+        } else {
+            stats = {
+                views: Math.max(0, (curr.play_count || 0) - (prev.play_count || 0)),
+                likes: Math.max(0, (curr.digg_count || 0) - (prev.digg_count || 0)),
+                comments: Math.max(0, (curr.comment_count || 0) - (prev.comment_count || 0)),
+                shares: Math.max(0, (curr.share_count || 0) - (prev.share_count || 0))
             }
         }
 
-        // Map fields based on platform
-        const title = platform === 'instagram' ? video.caption : video.description
-        const cover = platform === 'instagram' ? video.thumbnail_url : video.cover_url
-        const webVideoUrl = platform === 'instagram' ? (video.url || video.video_url) : video.web_video_url
-        const createdAt = platform === 'instagram' ? (video.timestamp || video.created_at) : (video.create_time || video.created_at)
+        // Get display fields from metadata
+        const title = platform === 'instagram' ? metadata.caption : metadata.description
+        const cover = platform === 'instagram' ? metadata.thumbnail_url : metadata.cover_url
+        const webVideoUrl = platform === 'instagram' ? (metadata.url || metadata.video_url) : metadata.web_video_url
+        const createdAt = platform === 'instagram' ? (metadata.timestamp || metadata.created_at) : (metadata.create_time || metadata.created_at)
 
         return {
             video_id: videoId || 'unknown',
-            title: title,
-            cover: cover,
-            web_video_url: webVideoUrl,
-            created_at: createdAt,
+            title: title || '',
+            cover: cover || '',
+            web_video_url: webVideoUrl || '',
+            created_at: createdAt || '',
             stats: stats
         }
-    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    }).sort((a, b) => b.stats.views - a.stats.views)  // Sort by views gain descending
 }
 
 // ==================== Account Groups ====================
