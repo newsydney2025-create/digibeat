@@ -87,8 +87,8 @@ async function handleTrigger(request: NextRequest, platform: string, isDaily: bo
         }
     }
 
-    // Log Trigger
-    await supabase.from('sync_logs').insert({
+    // Log Trigger (use type assertion since sync_logs isn't in generated types)
+    await (supabase.from('sync_logs') as any).insert({
         sync_type: source, // 'cron' or 'manual'
         platform: platform,
         status: 'triggered',
