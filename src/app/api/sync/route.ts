@@ -101,19 +101,21 @@ async function handleTrigger(request: NextRequest, platform: string, isDaily: bo
 }
 
 async function triggerApifyRun(token: string, actorId: string, input: any, webhookUrl: string) {
-    const res = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs?token=${token}`, {
+    // Apify requires webhooks to be Base64-encoded JSON in the query parameter
+    const webhooksConfig = [{
+        eventTypes: ['ACTOR.RUN.SUCCEEDED'],
+        requestUrl: webhookUrl
+    }]
+    const webhooksBase64 = Buffer.from(JSON.stringify(webhooksConfig)).toString('base64')
+
+    const res = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs?token=${token}&webhooks=${webhooksBase64}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            ...input,
-            webhooks: [{
-                eventTypes: ['ACTOR.RUN.SUCCEEDED'],
-                requestUrl: webhookUrl
-            }]
-        })
+        body: JSON.stringify(input)
     })
 
     if (!res.ok) throw new Error(`Apify trigger failed: ${await res.text()}`)
     const data = await res.json()
+    console.log(`Apify run started: ${data.data.id}, webhook: ${webhookUrl}`)
     return data.data.id
 }
