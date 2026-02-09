@@ -135,6 +135,13 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // Write logs to database
+        const authHeader = request.headers.get('authorization')
+        const isCronRequest = authHeader === `Bearer ${process.env.CRON_SECRET}` ||
+            request.headers.get('x-vercel-cron') === '1'
+
+        await writeSyncLog(supabase, isCronRequest ? 'cron' : 'manual', platform, results)
+
         return NextResponse.json({
             success: true,
             results
@@ -142,6 +149,11 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Sync error:', error)
+        try {
+            const supabase = await createClient()
+            await writeSyncLog(supabase, 'manual', 'unknown', null, error)
+        } catch (e) { /* ignore */ }
+
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
@@ -196,9 +208,16 @@ export async function GET(request: NextRequest) {
             }
 
             console.log('Cron sync completed:', results)
+            await writeSyncLog(supabase, 'cron', 'all', results)
+
             return NextResponse.json({ success: true, results, triggered_at: new Date().toISOString() })
         } catch (error) {
             console.error('Cron sync error:', error)
+            try {
+                const supabase = await createClient()
+                await writeSyncLog(supabase, 'cron', 'all', null, error)
+            } catch (e) { /* ignore */ }
+
             return NextResponse.json(
                 { error: error instanceof Error ? error.message : 'Unknown error' },
                 { status: 500 }
@@ -218,6 +237,22 @@ export async function GET(request: NextRequest) {
 export const maxDuration = 300  // 5 minutes
 
 // --- Helpers ---
+
+async function writeSyncLog(supabase: any, type: string, platform: string, results: any, error?: any) {
+    try {
+        await supabase.from('sync_logs').insert({
+            sync_type: type,
+            platform: platform,
+            status: error || (results?.errors?.length > 0) ? 'failed' : 'success',
+            started_at: new Date().toISOString(),
+            completed_at: new Date().toISOString(),
+            videos_synced: (results?.tiktok?.processed || 0) + (results?.instagram?.processed || 0),
+            error_message: error ? (error.message || String(error)) : (results?.errors?.length > 0 ? results.errors.join('; ') : null)
+        })
+    } catch (e) {
+        console.error('Failed to write sync log:', e)
+    }
+}
 
 async function runTikTokSync(supabase: any, apiToken: string, profiles: string[], isDaily: boolean) {
     // Start Actor
