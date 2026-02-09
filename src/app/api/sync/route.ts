@@ -99,41 +99,7 @@ export async function POST(request: NextRequest) {
         }
 
         const supabase = await createClient()
-        const results = {
-            tiktok: { processed: 0, snapshots: 0 },
-            instagram: { processed: 0, snapshots: 0 },
-            errors: [] as string[]
-        }
-
-        // --- TikTok Sync ---
-        if (platform === 'all' || platform === 'tiktok') {
-            if (SCRAPING_TARGETS.tiktok.length > 0) {
-                try {
-                    const tkResults = await runTikTokSync(supabase, apiToken, SCRAPING_TARGETS.tiktok, is_daily)
-                    results.tiktok = tkResults
-                } catch (e) {
-                    console.error('TikTok sync failed:', e)
-                    results.errors.push(`TikTok: ${e instanceof Error ? e.message : String(e)}`)
-                }
-            } else {
-                console.log('No TikTok targets configured, skipping.')
-            }
-        }
-
-        // --- Instagram Sync ---
-        if (platform === 'all' || platform === 'instagram') {
-            if (SCRAPING_TARGETS.instagram.length > 0) {
-                try {
-                    const igResults = await runInstagramSync(supabase, apiToken, SCRAPING_TARGETS.instagram, is_daily)
-                    results.instagram = igResults
-                } catch (e) {
-                    console.error('Instagram sync failed:', e)
-                    results.errors.push(`Instagram: ${e instanceof Error ? e.message : String(e)}`)
-                }
-            } else {
-                console.log('No Instagram targets configured, skipping.')
-            }
-        }
+        const results = await executeSyncsInParallel(supabase, apiToken, platform, is_daily)
 
         // Write logs to database
         const authHeader = request.headers.get('authorization')
@@ -179,33 +145,7 @@ export async function GET(request: NextRequest) {
 
         try {
             const supabase = await createClient()
-            const results = {
-                tiktok: { processed: 0, snapshots: 0 },
-                instagram: { processed: 0, snapshots: 0 },
-                errors: [] as string[]
-            }
-
-            // Run TikTok sync
-            if (SCRAPING_TARGETS.tiktok.length > 0) {
-                try {
-                    const tkResults = await runTikTokSync(supabase, apiToken, SCRAPING_TARGETS.tiktok, true)
-                    results.tiktok = tkResults
-                } catch (e) {
-                    console.error('TikTok sync failed:', e)
-                    results.errors.push(`TikTok: ${e instanceof Error ? e.message : String(e)}`)
-                }
-            }
-
-            // Run Instagram sync
-            if (SCRAPING_TARGETS.instagram.length > 0) {
-                try {
-                    const igResults = await runInstagramSync(supabase, apiToken, SCRAPING_TARGETS.instagram, true)
-                    results.instagram = igResults
-                } catch (e) {
-                    console.error('Instagram sync failed:', e)
-                    results.errors.push(`Instagram: ${e instanceof Error ? e.message : String(e)}`)
-                }
-            }
+            const results = await executeSyncsInParallel(supabase, apiToken, 'all', true)
 
             console.log('Cron sync completed:', results)
             await writeSyncLog(supabase, 'cron', 'all', results)
@@ -252,6 +192,50 @@ async function writeSyncLog(supabase: any, type: string, platform: string, resul
     } catch (e) {
         console.error('Failed to write sync log:', e)
     }
+}
+
+async function executeSyncsInParallel(supabase: any, apiToken: string, platform: 'tiktok' | 'instagram' | 'all', isDaily: boolean) {
+    const results = {
+        tiktok: { processed: 0, snapshots: 0 },
+        instagram: { processed: 0, snapshots: 0 },
+        errors: [] as string[]
+    }
+    const promises = []
+
+    // --- TikTok Sync ---
+    if (platform === 'all' || platform === 'tiktok') {
+        if (SCRAPING_TARGETS.tiktok.length > 0) {
+            promises.push(
+                runTikTokSync(supabase, apiToken, SCRAPING_TARGETS.tiktok, isDaily)
+                    .then(res => { results.tiktok = res })
+                    .catch(e => {
+                        console.error('TikTok sync failed:', e)
+                        results.errors.push(`TikTok: ${e instanceof Error ? e.message : String(e)}`)
+                    })
+            )
+        } else {
+            console.log('No TikTok targets configured, skipping.')
+        }
+    }
+
+    // --- Instagram Sync ---
+    if (platform === 'all' || platform === 'instagram') {
+        if (SCRAPING_TARGETS.instagram.length > 0) {
+            promises.push(
+                runInstagramSync(supabase, apiToken, SCRAPING_TARGETS.instagram, isDaily)
+                    .then(res => { results.instagram = res })
+                    .catch(e => {
+                        console.error('Instagram sync failed:', e)
+                        results.errors.push(`Instagram: ${e instanceof Error ? e.message : String(e)}`)
+                    })
+            )
+        } else {
+            console.log('No Instagram targets configured, skipping.')
+        }
+    }
+
+    await Promise.all(promises)
+    return results
 }
 
 async function runTikTokSync(supabase: any, apiToken: string, profiles: string[], isDaily: boolean) {
