@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+// import { createClient } from '@/lib/supabase/server'
 import { TikTokVideo, InstagramReel } from '@/types/database'
 
 // --- Types ---
@@ -112,7 +112,21 @@ export async function POST(request: NextRequest) {
 
         console.log(`Webhook received for ${platform}, runId: ${runId}`)
 
-        const supabase = await createClient()
+        console.log(`Webhook received for ${platform}, runId: ${runId}`)
+
+        // Use Service Role Key to bypass RLS for webhook ingestion
+        const { createClient } = await import('@supabase/supabase-js')
+        const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            }
+        )
+
         const apiToken = process.env.APIFY_API_TOKEN!
 
         // Fetch results from Apify
