@@ -135,14 +135,14 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid platform' }, { status: 400 })
         }
 
-        // Log success
-        await supabase.from('sync_logs').insert({
+        // Log success (use type assertion since sync_logs isn't in generated types)
+        await (supabase.from('sync_logs') as any).insert({
             sync_type: 'webhook',
             platform: platform,
             status: 'success',
-            started_at: new Date().toISOString(), // Approximation
+            started_at: new Date().toISOString(),
             completed_at: new Date().toISOString(),
-            videos_synced: 0, // We'd need to return count from process functions
+            videos_synced: 0,
             error_message: `Run ${runId} processed successfully`
         })
 
