@@ -29,9 +29,9 @@ export default function Header({ sessionId, onLogout }: HeaderProps) {
             }
 
             const data = await res.json()
-            console.log('Sync complete:', data)
-            alert('Data sync completed! Please refresh the page to see latest data.')
-            window.location.reload() // Force reload to fetch new data
+            console.log('Sync initiated:', data)
+            alert('Sync started in background! Data will appear in 2-3 minutes. You can refresh manually later.')
+            // window.location.reload()
         } catch (error) {
             console.error('Sync error:', error)
             alert('Sync failed. Check console for details.')
