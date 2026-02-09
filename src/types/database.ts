@@ -435,6 +435,11 @@ export interface DailySnapshot {
     total_likes: number
     total_comments: number
     total_shares: number
+    // Per-video gain (sum of video-level differences)
+    gain_views: number
+    gain_likes: number
+    gain_comments: number
+    gain_shares: number
     video_count: number
     created_at: string
 }
