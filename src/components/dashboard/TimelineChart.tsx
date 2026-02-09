@@ -44,8 +44,19 @@ export default function TimelineChart({
         return () => window.removeEventListener('resize', handleResize)
     }, [])
 
-    // Helper: Get metric value from snapshot
+    // Helper: Get metric value from snapshot (handles Total vs Daily logic)
     const getMetricValue = useCallback((s: DailySnapshot): number => {
+        if (viewMode === 'daily') {
+            switch (currentMetric) {
+                case 'playCount': return s.gain_views
+                case 'diggCount': return s.gain_likes
+                case 'commentCount': return s.gain_comments
+                case 'shareCount': return s.gain_shares
+                case 'collectCount': return 0
+                default: return 0
+            }
+        }
+        // Total mode
         switch (currentMetric) {
             case 'playCount': return s.total_views
             case 'diggCount': return s.total_likes
@@ -54,7 +65,7 @@ export default function TimelineChart({
             case 'collectCount': return 0
             default: return 0
         }
-    }, [currentMetric])
+    }, [currentMetric, viewMode])
 
     // Initialize & Update Chart
     useEffect(() => {
@@ -163,38 +174,23 @@ export default function TimelineChart({
             accountDataMaps[accountId] = dateValueMap
         })
 
-        // 4. Compute data arrays (with daily gain if needed)
+        // 4. Compute data arrays (Using precomputed values for both Total and Daily)
         const computeDataArray = (dateValueMap: Record<string, number>): number[] => {
-            return uniqueDates.map((dateStr, idx) => {
-                if (viewMode === 'total') {
-                    return dateValueMap[dateStr] || 0
-                } else {
-                    if (idx === 0) return 0
-                    const prevDateStr = uniqueDates[idx - 1]
-                    const currentVal = dateValueMap[dateStr] || 0
-                    const prevVal = dateValueMap[prevDateStr] || 0
-                    return Math.max(0, currentVal - prevVal)
-                }
+            return uniqueDates.map((dateStr) => {
+                // Since getMetricValue now returns the correct value (total or gain)
+                // we just return it directly. No diff calculation needed here.
+                return dateValueMap[dateStr] || 0
             })
         }
 
         // 5. Compute average data
-        const averageData: number[] = uniqueDates.map((dateStr, idx) => {
+        const averageData: number[] = uniqueDates.map((dateStr) => {
             let sum = 0
             let count = 0
             selectedAccounts.forEach(accountId => {
                 const map = accountDataMaps[accountId]
-                if (viewMode === 'total') {
-                    if (map[dateStr] !== undefined) {
-                        sum += map[dateStr]
-                        count++
-                    }
-                } else {
-                    if (idx === 0) return
-                    const prevDateStr = uniqueDates[idx - 1]
-                    const curr = map[dateStr] || 0
-                    const prev = map[prevDateStr] || 0
-                    sum += Math.max(0, curr - prev)
+                if (map[dateStr] !== undefined) {
+                    sum += map[dateStr]
                     count++
                 }
             })

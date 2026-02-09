@@ -29,6 +29,17 @@ export default function SmallMultiplesGrid({
 
     // Helper: Get metric value from snapshot
     const getMetricValue = useCallback((s: DailySnapshot): number => {
+        if (viewMode === 'daily') {
+            switch (currentMetric) {
+                case 'playCount': return s.gain_views
+                case 'diggCount': return s.gain_likes
+                case 'commentCount': return s.gain_comments
+                case 'shareCount': return s.gain_shares
+                case 'collectCount': return 0
+                default: return 0
+            }
+        }
+        // Total mode
         switch (currentMetric) {
             case 'playCount': return s.total_views
             case 'diggCount': return s.total_likes
@@ -37,7 +48,7 @@ export default function SmallMultiplesGrid({
             case 'collectCount': return 0
             default: return 0
         }
-    }, [currentMetric])
+    }, [currentMetric, viewMode])
 
     // Get unique dates
     const uniqueDates = useMemo(() => {
@@ -88,15 +99,8 @@ export default function SmallMultiplesGrid({
             })
 
             const data = filteredDates.map((date, i) => {
-                if (viewMode === 'total') {
-                    return dateValueMap[date] || 0
-                } else {
-                    if (i === 0) return 0
-                    const prevDate = filteredDates[i - 1]
-                    const curr = dateValueMap[date] || 0
-                    const prev = dateValueMap[prevDate] || 0
-                    return Math.max(0, curr - prev)
-                }
+                // Since getMetricValue now handles logic, just return the value
+                return dateValueMap[date] || 0
             })
 
             // Detect anomalies for marking

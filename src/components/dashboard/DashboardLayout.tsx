@@ -118,26 +118,23 @@ export default function DashboardLayout({
     // Calculate aggregated metrics
     const totals = useMemo<DashboardMetrics>(() => {
         if (viewMode === 'daily') {
-            // Calculate daily gain (Today - Yesterday) for all selected accounts
+            // Use precomputed per-video gains (gain_views, gain_likes, etc.)
+            // These are calculated at sync time: sum of (today - yesterday) for each video
             const latestDate = activeSnapshots.length > 0
                 ? activeSnapshots.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b).date
                 : null
 
             if (!latestDate) return { playCount: 0, diggCount: 0, commentCount: 0, shareCount: 0, collectCount: 0 }
 
-            const yesterday = new Date(latestDate)
-            yesterday.setDate(yesterday.getDate() - 1)
-            const yesterdayDate = yesterday.toISOString().split('T')[0]
-
             return selectedAccounts.reduce((acc, accountId) => {
                 const todaySnap = activeSnapshots.find(s => s.account_id === accountId && s.date === latestDate)
-                const yesterdaySnap = activeSnapshots.find(s => s.account_id === accountId && s.date === yesterdayDate)
 
                 if (todaySnap) {
-                    acc.playCount += Math.max(0, todaySnap.total_views - (yesterdaySnap?.total_views || 0))
-                    acc.diggCount += Math.max(0, todaySnap.total_likes - (yesterdaySnap?.total_likes || 0))
-                    acc.commentCount += Math.max(0, todaySnap.total_comments - (yesterdaySnap?.total_comments || 0))
-                    acc.shareCount += Math.max(0, todaySnap.total_shares - (yesterdaySnap?.total_shares || 0))
+                    // Use precomputed gains (already per-video aggregated)
+                    acc.playCount += todaySnap.gain_views || 0
+                    acc.diggCount += todaySnap.gain_likes || 0
+                    acc.commentCount += todaySnap.gain_comments || 0
+                    acc.shareCount += todaySnap.gain_shares || 0
                 }
                 return acc
             }, { playCount: 0, diggCount: 0, commentCount: 0, shareCount: 0, collectCount: 0 })
@@ -194,28 +191,12 @@ export default function DashboardLayout({
             let dailyGains = { views: 5000, likes: 500, comments: 50, shares: 20 } // default fallback
 
             if (currentSnapshot) {
-                // Find previous snapshot to diff
-                const sortedSnapshots = activeSnapshots
-                    .filter(s => s.account_id === account.id)
-                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
-                const currentIndex = sortedSnapshots.findIndex(s => s.date === date)
-                if (currentIndex > 0) {
-                    const prevSnapshot = sortedSnapshots[currentIndex - 1]
-                    dailyGains = {
-                        views: Math.max(0, currentSnapshot.total_views - prevSnapshot.total_views),
-                        likes: Math.max(0, currentSnapshot.total_likes - prevSnapshot.total_likes),
-                        comments: Math.max(0, currentSnapshot.total_comments - prevSnapshot.total_comments),
-                        shares: Math.max(0, currentSnapshot.total_shares - prevSnapshot.total_shares)
-                    }
-                } else {
-                    // First day: Daily gain IS the total (assuming 0 baseline)
-                    dailyGains = {
-                        views: currentSnapshot.total_views,
-                        likes: currentSnapshot.total_likes,
-                        comments: currentSnapshot.total_comments,
-                        shares: currentSnapshot.total_shares
-                    }
+                // Use precomputed per-video gains
+                dailyGains = {
+                    views: currentSnapshot.gain_views || 0,
+                    likes: currentSnapshot.gain_likes || 0,
+                    comments: currentSnapshot.gain_comments || 0,
+                    shares: currentSnapshot.gain_shares || 0
                 }
             }
 

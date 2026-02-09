@@ -95,6 +95,11 @@ export function generateInstagramSnapshots(reels: InstagramReel[], accounts: Ins
             const totalLikes = activeReels.reduce((sum, v) => sum + v.likes_count, 0)
             const totalComments = activeReels.reduce((sum, v) => sum + v.comments_count, 0)
 
+            // Approximate gains (since this is synthetic data)
+            const gainViews = i > 0 ? Math.max(0, totalViews - snapshots[i - 1].total_views) : 0
+            const gainLikes = i > 0 ? Math.max(0, totalLikes - snapshots[i - 1].total_likes) : 0
+            const gainComments = i > 0 ? Math.max(0, totalComments - snapshots[i - 1].total_comments) : 0
+
             snapshots.push({
                 id: `snap-${account.id}-${dateStr}`,
                 account_id: account.id,
@@ -103,6 +108,10 @@ export function generateInstagramSnapshots(reels: InstagramReel[], accounts: Ins
                 total_likes: totalLikes,
                 total_comments: totalComments,
                 total_shares: 0,
+                gain_views: gainViews,
+                gain_likes: gainLikes,
+                gain_comments: gainComments,
+                gain_shares: 0,
                 video_count: activeReels.length,
                 created_at: new Date().toISOString()
             })
