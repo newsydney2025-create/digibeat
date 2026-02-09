@@ -160,6 +160,12 @@ export async function POST(request: NextRequest) {
 async function processTikTokData(supabase: any, items: ApifyTikTokData[], isDaily: boolean) {
     let processed = 0
     const accountVideosMap = new Map<string, any[]>()
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+
+    // Calculate yesterday properly relative to today string
+    const d = new Date(today + 'T00:00:00')
+    d.setDate(d.getDate() - 1)
+    const yesterday = d.toISOString().split('T')[0]
 
     for (const item of items) {
         if (!item.authorMeta) continue
@@ -201,12 +207,40 @@ async function processTikTokData(supabase: any, items: ApifyTikTokData[], isDail
             }, { onConflict: 'video_id' }).select().single()
 
             if (video) {
-                if (!accountVideosMap.has(account.id)) accountVideosMap.set(account.id, [])
-                accountVideosMap.get(account.id)?.push(video)
-                processed++
-
+                // Calculate Gains if Daily
+                let gains = { views: 0, likes: 0, comments: 0, shares: 0 }
                 if (isDaily) {
-                    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+                    // Fetch yesterday's history
+                    const { data: history } = await supabase
+                        .from('tiktok_video_history')
+                        .select('play_count, digg_count, comment_count, share_count')
+                        .eq('video_id', video.video_id)
+                        .eq('date', yesterday)
+                        .single()
+
+                    if (history) {
+                        gains.views = Math.max(0, (video.play_count || 0) - (history.play_count || 0))
+                        gains.likes = Math.max(0, (video.digg_count || 0) - (history.digg_count || 0))
+                        gains.comments = Math.max(0, (video.comment_count || 0) - (history.comment_count || 0))
+                        gains.shares = Math.max(0, (video.share_count || 0) - (history.share_count || 0))
+                    } else {
+                        // New video today or no history yesterday: gain = current (assuming daily scrape captures new growth)
+                        // OR if it's an old video first scraped today?
+                        // Logic in sync script: gain = current - 0 = current.
+                        gains.views = video.play_count || 0
+                        gains.likes = video.digg_count || 0
+                        gains.comments = video.comment_count || 0
+                        gains.shares = video.share_count || 0
+
+                        // BUT: If the video create_time is old, this might be a huge spike. 
+                        // However, we only scrape "latest 20", so usually they are recent.
+                        // If we want to be safe and only count gain if we have history: 
+                        // But user logic "Day 1 0, Day 2 Gain" implies Day 1 (first scrape) counts as 0 gain?
+                        // No, user said: "Day 3 scrape... video 5,6 no data yesterday... current - 0 = current"
+                        // So yes, default to current value IS the correct logic per user request.
+                    }
+
+                    // Upsert Today's History
                     await supabase.from('tiktok_video_history').upsert({
                         video_id: video.video_id,
                         account_id: account.id,
@@ -218,6 +252,13 @@ async function processTikTokData(supabase: any, items: ApifyTikTokData[], isDail
                         created_at: new Date().toISOString()
                     }, { onConflict: 'video_id, date' })
                 }
+
+                // Attach gains to video object for snapshot aggregation
+                const videoWithGains = { ...video, ...gains }
+
+                if (!accountVideosMap.has(account.id)) accountVideosMap.set(account.id, [])
+                accountVideosMap.get(account.id)?.push(videoWithGains)
+                processed++
             }
         }
     }
@@ -229,18 +270,11 @@ async function processTikTokData(supabase: any, items: ApifyTikTokData[], isDail
 
 async function processInstagramData(supabase: any, items: ApifyInstagramData[], isDaily: boolean) {
     const accountVideosMap = new Map<string, any[]>()
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
 
-    // IMPORTANT: We need to match items to accounts. 
-    // Instagram items have `ownerUsername`.
-    // We assume accounts are already created? 
-    // Actually, in previous sync logic, we scraped profiles FIRST to create accounts, THEN posts.
-    // In Async model, we can still do that if we trigger profile scrape first?
-    // OR we just upsert accounts based on post data (minimal info) if missing?
-    // The previous logic had 2 stages: Profile Scrape -> Post Scrape.
-    // If we only run Post Scrape in webhook, verify we have accounts.
-    // Items generally have `ownerUsername`.
-
-    // Simplified for webhook: Upsert account with basic info if missing, or update if exists.
+    const d = new Date(today + 'T00:00:00')
+    d.setDate(d.getDate() - 1)
+    const yesterday = d.toISOString().split('T')[0]
 
     for (const item of items) {
         if (!item.ownerUsername) continue
@@ -286,11 +320,28 @@ async function processInstagramData(supabase: any, items: ApifyInstagramData[], 
             }, { onConflict: 'instagram_id' }).select().single()
 
             if (reel) {
-                if (!accountVideosMap.has(accountId)) accountVideosMap.set(accountId, [])
-                accountVideosMap.get(accountId)?.push(reel)
-
+                // Calculate Gains if Daily
+                let gains = { views: 0, likes: 0, comments: 0 }
                 if (isDaily) {
-                    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+                    // Fetch yesterday's history
+                    const { data: history } = await supabase
+                        .from('instagram_reel_history')
+                        .select('video_play_count, likes_count, comments_count')
+                        .eq('instagram_id', reel.instagram_id)
+                        .eq('date', yesterday)
+                        .single()
+
+                    if (history) {
+                        gains.views = Math.max(0, (reel.video_play_count || 0) - (history.video_play_count || 0))
+                        gains.likes = Math.max(0, (reel.likes_count || 0) - (history.likes_count || 0))
+                        gains.comments = Math.max(0, (reel.comments_count || 0) - (history.comments_count || 0))
+                    } else {
+                        gains.views = reel.video_play_count || 0
+                        gains.likes = reel.likes_count || 0
+                        gains.comments = reel.comments_count || 0
+                    }
+
+                    // Upsert Today's History
                     await supabase.from('instagram_reel_history').upsert({
                         instagram_id: reel.instagram_id,
                         account_id: accountId,
@@ -301,6 +352,12 @@ async function processInstagramData(supabase: any, items: ApifyInstagramData[], 
                         created_at: new Date().toISOString()
                     }, { onConflict: 'instagram_id, date' })
                 }
+
+                // Attach gains
+                const reelWithGains = { ...reel, ...gains }
+
+                if (!accountVideosMap.has(accountId)) accountVideosMap.set(accountId, [])
+                accountVideosMap.get(accountId)?.push(reelWithGains)
             }
         }
     }
@@ -321,8 +378,16 @@ async function generateSnapshots(supabase: any, accountVideosMap: Map<string, an
                 views: acc.views + (v.play_count || v.video_play_count || 0),
                 likes: acc.likes + (v.digg_count || v.likes_count || 0),
                 comments: acc.comments + (v.comment_count || v.comments_count || 0),
-                shares: acc.shares + (v.share_count || 0)
-            }), { views: 0, likes: 0, comments: 0, shares: 0 })
+                shares: acc.shares + (v.share_count || 0),
+                // Sum Up Gains
+                gain_views: acc.gain_views + (v.views || 0), // Note: property name on object is 'views'/'likes' from gain calc
+                gain_likes: acc.gain_likes + (v.likes || 0),
+                gain_comments: acc.gain_comments + (v.comments || 0),
+                gain_shares: acc.gain_shares + (v.shares || 0)
+            }), {
+                views: 0, likes: 0, comments: 0, shares: 0,
+                gain_views: 0, gain_likes: 0, gain_comments: 0, gain_shares: 0
+            })
 
             await supabase.from('daily_snapshots').upsert({
                 account_id: accountId,
@@ -331,6 +396,10 @@ async function generateSnapshots(supabase: any, accountVideosMap: Map<string, an
                 total_likes: totals.likes,
                 total_comments: totals.comments,
                 total_shares: totals.shares,
+                gain_views: totals.gain_views,
+                gain_likes: totals.gain_likes,
+                gain_comments: totals.gain_comments,
+                gain_shares: totals.gain_shares,
                 video_count: videos.length,
                 created_at: new Date().toISOString()
             }, { onConflict: 'account_id, date' })
