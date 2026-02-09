@@ -14,6 +14,6 @@ jobs:
     steps:
       - name: Trigger Sync API
         run: |
-          curl -X POST ${{ secrets.NEXT_PUBLIC_APP_URL }}/api/sync \
+          curl -X POST https://digibeat.vercel.app/api/sync \
           -H "Content-Type: application/json" \
           -d '{"is_daily": true, "platform": "all"}'
