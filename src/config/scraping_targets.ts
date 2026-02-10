@@ -43,7 +43,8 @@ export const SCRAPING_TARGETS = {
         'claire_mumjourney',
         'Oliverslens',
         'sophiessydneydiar',
-        'SinclairWellness'
+        'SinclairWellness',
+        'jinasyd'
     ],
     instagram: [
         'https://www.instagram.com/hellen_nguyen01/',
