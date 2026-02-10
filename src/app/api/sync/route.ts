@@ -61,7 +61,7 @@ async function handleTrigger(request: NextRequest, platform: string, isDaily: bo
                 'clockworks~tiktok-scraper',
                 {
                     profiles: SCRAPING_TARGETS.tiktok,
-                    resultsPerPage: 4, // TEST MODE: 4 videos
+                    resultsPerPage: 20, // INCREASED LIMIT
                     profileScrapeSections: ['videos'],
                     profileSorting: 'latest'
                 },
@@ -86,7 +86,7 @@ async function handleTrigger(request: NextRequest, platform: string, isDaily: bo
                 'apify~instagram-scraper',
                 {
                     directUrls: SCRAPING_TARGETS.instagram,
-                    resultsLimit: 4, // TEST MODE: 4 videos
+                    resultsLimit: 20, // INCREASED LIMIT
                     scrapePosts: true,
                     scrapeComments: false,
                     resultsType: 'posts',
