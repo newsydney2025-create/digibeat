@@ -319,7 +319,8 @@ async function processInstagramData(supabase: any, items: ApifyInstagramData[], 
             // Upsert Reel/Post
             const videoId = item.id || item.shortCode
             const { data: reel } = await supabase.from('instagram_reels').upsert({
-                instagram_id: videoId,
+                reel_id: videoId,
+                short_code: item.shortCode,
                 account_id: accountId,
                 caption: item.caption,
                 video_url: item.videoUrl || item.displayUrl, // Fallback
@@ -329,9 +330,8 @@ async function processInstagramData(supabase: any, items: ApifyInstagramData[], 
                 comments_count: item.commentsCount || 0,
                 timestamp: item.timestamp,
                 url: item.url,
-                is_reel: item.type === 'Video' || !!item.videoUrl,
                 updated_at: new Date().toISOString()
-            }, { onConflict: 'instagram_id' }).select().single()
+            }, { onConflict: 'reel_id' }).select().single()
 
             if (reel) {
                 // Calculate Gains if Daily
@@ -341,7 +341,7 @@ async function processInstagramData(supabase: any, items: ApifyInstagramData[], 
                     const { data: history } = await supabase
                         .from('instagram_reel_history')
                         .select('video_play_count, likes_count, comments_count')
-                        .eq('instagram_id', reel.instagram_id)
+                        .eq('reel_id', reel.reel_id)
                         .eq('date', yesterday)
                         .single()
 
@@ -357,14 +357,14 @@ async function processInstagramData(supabase: any, items: ApifyInstagramData[], 
 
                     // Upsert Today's History
                     await supabase.from('instagram_reel_history').upsert({
-                        instagram_id: reel.instagram_id,
+                        reel_id: reel.reel_id,
                         account_id: accountId,
                         date: today,
                         video_play_count: reel.video_play_count,
                         likes_count: reel.likes_count,
                         comments_count: reel.comments_count,
                         created_at: new Date().toISOString()
-                    }, { onConflict: 'instagram_id, date' })
+                    }, { onConflict: 'reel_id, date' })
                 }
 
                 // Attach gains
