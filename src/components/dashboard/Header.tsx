@@ -10,6 +10,7 @@ interface HeaderProps {
 
 export default function Header({ sessionId, onLogout }: HeaderProps) {
     const [statusMessage, setStatusMessage] = useState('SYNC DATA')
+    const [isSyncing, setIsSyncing] = useState(false)
 
     const handleSync = async () => {
         if (isSyncing) return

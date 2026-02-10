@@ -20,10 +20,12 @@ export async function getLatestSyncStatus() {
         return null
     }
 
+    const log = data as any
+
     return {
-        id: data.id,
-        status: data.status, // 'triggered', 'processing', 'completed', 'error'
-        started_at: data.started_at,
-        completed_at: data.completed_at
+        id: log.id,
+        status: log.status, // 'triggered', 'processing', 'completed', 'error'
+        started_at: log.started_at,
+        completed_at: log.completed_at
     }
 }
