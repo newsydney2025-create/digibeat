@@ -48,7 +48,7 @@ export default function Header({ sessionId, onLogout }: HeaderProps) {
                 try {
                     const status = await getLatestSyncStatus()
 
-                    if (status?.status === 'completed') {
+                    if (status?.status === 'completed' || status?.status === 'success') {
                         clearInterval(pollInterval)
                         setIsSyncing(false)
                         setStatusMessage('DONE')
