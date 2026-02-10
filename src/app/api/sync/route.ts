@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+// import { createClient } from '@/lib/supabase/server'
 import { SCRAPING_TARGETS } from '@/config/scraping_targets'
 
 export const maxDuration = 60 // Triggering is fast
@@ -39,7 +39,18 @@ async function handleTrigger(request: NextRequest, platform: string, isDaily: bo
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
     if (!appUrl) return NextResponse.json({ error: 'NEXT_PUBLIC_APP_URL not set' }, { status: 500 })
 
-    const supabase = await createClient()
+    // Use Service Role Key to bypass RLS for sync logging
+    const { createClient } = await import('@supabase/supabase-js')
+    const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
+        }
+    )
     const results: any = { triggered: [] }
 
     // --- TikTok ---
