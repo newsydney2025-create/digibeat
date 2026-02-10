@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { getLatestSyncStatus } from '@/app/actions/sync'
 
 interface HeaderProps {
     sessionId: string
@@ -8,35 +9,67 @@ interface HeaderProps {
 }
 
 export default function Header({ sessionId, onLogout }: HeaderProps) {
-    const [isSyncing, setIsSyncing] = useState(false)
+    const [statusMessage, setStatusMessage] = useState('SYNC DATA')
 
     const handleSync = async () => {
         if (isSyncing) return
 
         setIsSyncing(true)
+        setStatusMessage('STARTING...')
+
         try {
-            // Manual sync NOW creates a daily snapshot to ensure charts update immediately.
-            // This allows the user to see the "Current Status" as a data point.
+            // 1. Trigger the Sync
             const res = await fetch('/api/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ platform: 'all', is_daily: true })
             })
 
-            if (!res.ok) {
-                const err = await res.json()
-                throw new Error(err.error || 'Sync failed')
-            }
+            if (!res.ok) throw new Error('Failed to trigger sync')
 
-            const data = await res.json()
-            console.log('Sync initiated:', data)
-            alert('Sync started in background! Data will appear in 2-3 minutes. You can refresh manually later.')
-            // window.location.reload()
+            setStatusMessage('SYNCING...')
+
+            // 2. Poll for Completion
+            // Check status every 5 seconds for up to 5 minutes
+            const startTime = Date.now()
+            const timeout = 5 * 60 * 1000 // 5 minutes waiting time
+
+            const pollInterval = setInterval(async () => {
+                const elapsed = Date.now() - startTime
+                if (elapsed > timeout) {
+                    clearInterval(pollInterval)
+                    setIsSyncing(false)
+                    setStatusMessage('TIMEOUT')
+                    alert('Sync timed out (backend may still be processing).')
+                    return
+                }
+
+                try {
+                    const status = await getLatestSyncStatus()
+
+                    if (status?.status === 'completed') {
+                        clearInterval(pollInterval)
+                        setIsSyncing(false)
+                        setStatusMessage('DONE')
+                        alert('Data sync completed successfully!')
+                        window.location.reload()
+                    } else if (status?.status === 'error') {
+                        clearInterval(pollInterval)
+                        setIsSyncing(false)
+                        setStatusMessage('FAILED')
+                        alert('Sync failed. Check system logs.')
+                    }
+                    // If 'triggered' or 'processing', keep waiting...
+                } catch (err) {
+                    console.error('Polling error:', err)
+                }
+            }, 5000)
+
         } catch (error) {
-            console.error('Sync error:', error)
-            alert('Sync failed. Check console for details.')
-        } finally {
+            console.error('Sync trigger error:', error)
             setIsSyncing(false)
+            setStatusMessage('ERROR')
+            alert('Failed to start sync.')
         }
     }
 
@@ -75,7 +108,7 @@ export default function Header({ sessionId, onLogout }: HeaderProps) {
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            SYNCING...
+                            {statusMessage}
                         </>
                     ) : (
                         <>
