@@ -83,7 +83,9 @@ async function main() {
     console.log('\n--- TikTok Scrape ---');
     const tkItems = await runApifyActor('clockworks~tiktok-scraper', {
         profiles: TIKTOK_ACCOUNTS,
-        resultsPerPage: 20, // INCREASED LIMIT
+        resultsPerPage: 20, // PRIMARY
+        limit: 20,          // FALLBACK
+        maxItems: 20,       // FALLBACK
         profileScrapeSections: ['videos'],
         profileSorting: 'latest'
     });
@@ -97,7 +99,9 @@ async function main() {
     console.log('\n--- Instagram Scrape ---');
     const igItems = await runApifyActor('apify~instagram-scraper', {
         directUrls: INSTAGRAM_ACCOUNTS,
-        resultsLimit: 20, // INCREASED LIMIT
+        resultsLimit: 20, // PRIMARY
+        limit: 20,        // FALLBACK
+        maxItems: 20,     // FALLBACK
         scrapePosts: true,
         scrapeComments: false,
         resultsType: 'posts',
