@@ -37,13 +37,10 @@ export default function Header({ sessionId, onLogout }: HeaderProps) {
 
             const pollInterval = setInterval(async () => {
                 const elapsed = Date.now() - startTime
-                if (elapsed > timeout) {
-                    clearInterval(pollInterval)
-                    setIsSyncing(false)
-                    setStatusMessage('TIMEOUT')
-                    alert('Sync timed out (backend may still be processing).')
-                    return
-                }
+                // No timeout limit requested by user
+                /* 
+                if (elapsed > timeout) { ... } 
+                */
 
                 try {
                     const status = await getLatestSyncStatus()
