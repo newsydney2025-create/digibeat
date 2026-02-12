@@ -61,7 +61,9 @@ async function handleTrigger(request: NextRequest, platform: string, isDaily: bo
                 'clockworks~tiktok-scraper',
                 {
                     profiles: SCRAPING_TARGETS.tiktok,
-                    resultsPerPage: 20, // INCREASED LIMIT
+                    resultsPerPage: 20, // PRIMARY
+                    limit: 20,          // FALLBACK
+                    maxItems: 20,       // FALLBACK
                     profileScrapeSections: ['videos'],
                     profileSorting: 'latest'
                 },
@@ -74,19 +76,15 @@ async function handleTrigger(request: NextRequest, platform: string, isDaily: bo
     // --- Instagram ---
     if (platform === 'all' || platform === 'instagram') {
         if (SCRAPING_TARGETS.instagram.length > 0) {
-            // Profile Scrape (Optional, but good for metadata)
-            // Triggering 2 runs might use more CU, but it's cleaner. 
-            // Let's Skip Profile Scrape for now to focus on fixing the main issue (Snapshots) which comes from posts.
-            // Wait, if I skip profile scrape, account metadata (avatar) might be stale/missing?
-            // I'll leave it for now. User needs metrics.
-
             // Post Scrape
             const runId = await triggerApifyRun(
                 apiToken,
                 'apify~instagram-scraper',
                 {
                     directUrls: SCRAPING_TARGETS.instagram,
-                    resultsLimit: 20, // INCREASED LIMIT
+                    resultsLimit: 20, // PRIMARY
+                    limit: 20,        // FALLBACK
+                    maxItems: 20,     // FALLBACK
                     scrapePosts: true,
                     scrapeComments: false,
                     resultsType: 'posts',
