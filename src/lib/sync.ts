@@ -257,7 +257,9 @@ export async function processTikTokDataBulk(supabase: SupabaseClient<Database>, 
     if (isDaily && accountVideosMap.size > 0) {
         const snapshotsToUpsert: any[] = []
 
-        for (const [accountId, videos] of accountVideosMap.entries()) {
+
+        // Fix iterator issue by converting to array
+        for (const [accountId, videos] of Array.from(accountVideosMap.entries())) {
             const totals = videos.reduce((acc, v) => ({
                 views: acc.views + (v.views || 0),
                 likes: acc.likes + (v.likes || 0),
