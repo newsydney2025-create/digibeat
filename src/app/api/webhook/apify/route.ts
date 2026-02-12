@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { processTikTokDataBulk, processInstagramDataBulk, ApifyTikTokData, ApifyInstagramData } from '@/lib/sync'
+import { processTikTokDataBulk, processInstagramDataBulk, ApifyTikTokData, ApifyInstagramData } from '../../../../lib/sync'
 
 export const maxDuration = 300 // Set max duration to 5 mins (Vercel Pro) just in case, though we expect <10s
 
