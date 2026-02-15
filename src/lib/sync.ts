@@ -89,6 +89,10 @@ interface VideoGainStats {
 export async function processTikTokDataBulk(supabase: SupabaseClient<Database>, items: ApifyTikTokData[], isDaily: boolean) {
     if (!items || items.length === 0) return
 
+    // Deduplicate items to prevent double counting in snapshots
+    const uniqueItems = Array.from(new Map(items.map(item => [item.id, item])).values())
+
+
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
     const d = new Date(today + 'T00:00:00')
     d.setDate(d.getDate() - 1)
@@ -99,7 +103,7 @@ export async function processTikTokDataBulk(supabase: SupabaseClient<Database>, 
     const accountUsernames = new Set<string>()
 
     // Deduplicate accounts from items
-    for (const item of items) {
+    for (const item of uniqueItems) {
         if (item.authorMeta?.name) {
             const username = item.authorMeta.name
             if (!accountsMap.has(username)) {
@@ -143,7 +147,7 @@ export async function processTikTokDataBulk(supabase: SupabaseClient<Database>, 
     // We need to fetch history first to calculate gains.
     // Video ID mapping: items map to videos using ID.
 
-    for (const item of items) {
+    for (const item of uniqueItems) {
         if (!item.authorMeta?.name) continue
         const accountId = usernameToId.get(item.authorMeta.name)
         if (!accountId) continue
@@ -301,6 +305,10 @@ export async function processTikTokDataBulk(supabase: SupabaseClient<Database>, 
 export async function processInstagramDataBulk(supabase: SupabaseClient<Database>, items: ApifyInstagramData[], isDaily: boolean) {
     if (!items || items.length === 0) return
 
+    // Deduplicate items
+    const uniqueItems = Array.from(new Map(items.map(item => [item.id || item.shortCode, item])).values())
+
+
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
     const d = new Date(today + 'T00:00:00')
     d.setDate(d.getDate() - 1)
@@ -309,7 +317,7 @@ export async function processInstagramDataBulk(supabase: SupabaseClient<Database
     // 1. Prepare Accounts
     const accountsMap = new Map<string, any>()
 
-    for (const item of items) {
+    for (const item of uniqueItems) {
         if (item.ownerUsername) {
             // Instagram items don't strictly contain full profile info in media object always?
             // Apify Instagram scraper usually provides ownerUsername. 
@@ -371,7 +379,7 @@ export async function processInstagramDataBulk(supabase: SupabaseClient<Database
     const reelIdsToCheck: string[] = []
     const accountVideosMap = new Map<string, VideoGainStats[]>()
 
-    for (const item of items) {
+    for (const item of uniqueItems) {
         if (!item.ownerUsername) continue
         const accountId = usernameToId.get(item.ownerUsername)
         if (!accountId) continue

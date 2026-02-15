@@ -2,13 +2,18 @@
 
 import { useState } from 'react'
 import { getLatestSyncStatus } from '@/app/actions/sync'
+import ExcelDownloadButton from '@/components/common/ExcelDownloadButton'
+import { DailySnapshot, TikTokAccount, InstagramAccount } from '@/types/database'
 
 interface HeaderProps {
     sessionId: string
     onLogout: () => void
+    snapshots: DailySnapshot[]
+    accounts: TikTokAccount[]
+    instagramAccounts: InstagramAccount[]
 }
 
-export default function Header({ sessionId, onLogout }: HeaderProps) {
+export default function Header({ sessionId, onLogout, snapshots, accounts, instagramAccounts }: HeaderProps) {
     const [statusMessage, setStatusMessage] = useState('SYNC DATA')
     const [isSyncing, setIsSyncing] = useState(false)
 
@@ -37,13 +42,10 @@ export default function Header({ sessionId, onLogout }: HeaderProps) {
 
             const pollInterval = setInterval(async () => {
                 const elapsed = Date.now() - startTime
-                if (elapsed > timeout) {
-                    clearInterval(pollInterval)
-                    setIsSyncing(false)
-                    setStatusMessage('TIMEOUT')
-                    alert('Sync timed out (backend may still be processing).')
-                    return
-                }
+                // No timeout limit requested by user
+                /* 
+                if (elapsed > timeout) { ... } 
+                */
 
                 try {
                     const status = await getLatestSyncStatus()
@@ -95,6 +97,14 @@ export default function Header({ sessionId, onLogout }: HeaderProps) {
                 </div>
             </div>
             <div className="flex items-center gap-4">
+                <ExcelDownloadButton
+                    snapshots={snapshots}
+                    accounts={accounts}
+                    instagramAccounts={instagramAccounts}
+                />
+
+                <div className="w-px h-8 bg-white/10 mx-2"></div>
+
                 <button
                     onClick={handleSync}
                     disabled={isSyncing}

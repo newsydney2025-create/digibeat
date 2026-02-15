@@ -266,7 +266,20 @@ export default function DashboardLayout({
 
                 <main className="flex-1 flex flex-col min-w-0 h-full p-6 gap-6 overflow-y-auto custom-scrollbar">
                     <div className="flex items-center justify-between">
-                        <Header sessionId={sessionId} onLogout={onLogout} />
+                        <Header
+                            sessionId={sessionId}
+                            onLogout={onLogout}
+                            snapshots={activeSnapshots}
+                            accounts={accounts} // Pass raw accounts for full list (or activeAccounts if we want filtered)
+                            // User likely wants ALL accounts download, not just platform filtered.
+                            // But DashboardLayout handles platform switching.
+                            // Let's pass ALL available data (props.accounts + props.instagramAccounts)
+                            // But Header needs correct props.
+                            // Actually DashboardLayout has `accounts` and `instagramAccounts` from props.
+                            // `activeSnapshots` contains ALL snapshots (fetchSnapshots returns all).
+                            // So we pass them all.
+                            instagramAccounts={instagramAccounts}
+                        />
                         <PlatformSwitcher
                             platform={platform}
                             onChange={(p) => {
