@@ -1,0 +1,28 @@
+Debugging joyfulsydney on 2026-02-12
+Account: joyfulsydney (50c5cb3a-0734-4613-9320-2f8890c4afbf)
+Tooltip (Snapshot) Gain Views: 3308
+
+Detailed Video Gains:
+Video ID: 7605759580533951765 | Gain: +525 (Curr: 525, Prev: None)
+Video ID: 7583912864549899541 | Gain: +100 (Curr: 161600, Prev: 161500)
+Video ID: 7605483027531123989 | Gain: +1420 (Curr: 1420, Prev: None)
+Video ID: 7605385921143393556 | Gain: +718 (Curr: 738, Prev: 20)
+Video ID: 7605112408729799957 | Gain: +452 (Curr: 1783, Prev: 1331)
+Video ID: 7604727693409619220 | Gain: +7 (Curr: 85, Prev: 78)
+Video ID: 7604658125278383381 | Gain: +11 (Curr: 308, Prev: 297)
+Video ID: 7604372024818928916 | Gain: +5 (Curr: 541, Prev: 536)
+Video ID: 7603956205039406356 | Gain: +6 (Curr: 1404, Prev: 1398)
+Video ID: 7602514971322273045 | Gain: +47 (Curr: 2874, Prev: 2827)
+Video ID: 7604316537272454421 | Gain: +35 (Curr: 1265, Prev: 1230)
+Video ID: 7603628030963010837 | Gain: +5 (Curr: 418, Prev: 413)
+Video ID: 7603564214296530197 | Gain: +23 (Curr: 1703, Prev: 1680)
+Video ID: 7603257749933247765 | Gain: +76 (Curr: 2503, Prev: 2427)
+Video ID: 7602891151695187221 | Gain: +180 (Curr: 5391, Prev: 5211)
+Video ID: 7602840046361775380 | Gain: +10 (Curr: 342, Prev: 332)
+Video ID: 7605018013644999957 | Gain: +91 (Curr: 132, Prev: 41)
+Video ID: 7604001830330453268 | Gain: +22 (Curr: 1230, Prev: 1208)
+Video ID: 7603208981229702421 | Gain: +100 (Curr: 2598, Prev: 2498)
+Video ID: 7602145144682466580 | Gain: +2955 (Curr: 2955, Prev: None)
+
+Sum of Detailed Gains: 6788
+MISMATCH

@@ -1,0 +1,122 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <base href="file:///C:/Users/jason/.gemini/antigravity/scratch/digibeat/docs/">
+        <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+        <script>mermaid.initialize({startOnLoad:true});</script>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+            
+            body { 
+                font-family: 'Microsoft YaHei', 'SimHei', 'Inter', sans-serif; 
+                line-height: 1.6; 
+                color: #334155; 
+                max-width: 800px; 
+                margin: 0 auto; 
+                padding: 40px;
+            }
+            
+            /* Cover Page */
+            .cover {
+                height: 900px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+                color: white;
+                margin: -40px -40px 40px -40px;
+                padding: 40px;
+                page-break-after: always;
+            }
+            /* ... same CSS as before ... */
+            .cover h1 { border: none; font-size: 4em; margin: 0; text-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+            .cover p { font-size: 1.5em; opacity: 0.9; }
+            .cover .version { margin-top: 20px; font-family: monospace; opacity: 0.7; }
+
+            h1 { font-size: 2.5em; color: #0f172a; border-bottom: 3px solid #06b6d4; padding-bottom: 10px; margin-top: 2em; }
+            h2 { font-size: 1.8em; color: #1e293b; margin-top: 1.5em; display: flex; align-items: center; gap: 10px; }
+            h3 { font-size: 1.4em; color: #334155; margin-top: 1.2em; }
+            p { margin-bottom: 1em; }
+            img { max-width: 100%; border-radius: 8px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); margin: 20px 0; border: 1px solid #e2e8f0; }
+            pre { background: #1e293b; color: #e2e8f0; padding: 20px; border-radius: 8px; overflow-x: auto; }
+            blockquote { border-left: 4px solid #06b6d4; background: #f0f9ff; padding: 1rem; border-radius: 0 8px 8px 0; margin: 0; color: #0c4a6e; }
+            .mermaid { display: flex; justify-content: center; margin: 30px 0; }
+        </style>
+    </head>
+    <body>
+        <div class="cover">
+            <h1>DIGIBEAT</h1>
+            <p>Social Media Analytics Dashboard</p>
+            <p class="version">User Guide v1.0 (CN)</p>
+        </div>
+        
+        <h1>Digibeat 项目文档</h1>
+<h2>1. 项目概览 (Project Overview)</h2>
+<p><strong>Digibeat</strong> 是一个专为 TikTok 和 Instagram 账号设计的社交媒体分析看板 (Dashboard)，用于追踪和可视化每日关键指标 (浏览量、点赞、评论、分享)。它通过每日快照 (Daily Snapshot) 和真实增量计算 (True Daily Gains) 解决了平台原生数据缺乏“历史细粒度”的问题。</p>
+<h2>2. 核心功能 (Key Features)</h2>
+<h3>2.1 每日快照与真实增量 (Daily Snapshots &amp; True Gains)</h3>
+<ul>
+<li><strong>痛点</strong>: 平台通常只显示“累计总数”，无法看到昨日具体的增长。</li>
+<li><strong>解决方案</strong>: 我们每日抓取数据，并使用 <code>今日 - 昨日</code> 的逻辑计算每条视频的<em>精确增量</em>。</li>
+<li><strong>价值</strong>: 精准追踪每日表现，排除“历史遗留数据”的干扰。</li>
+</ul>
+<h3>2.2 数据看板可视化 (Dashboard Visualization)</h3>
+<ul>
+<li><p><strong>趋势图 (Timeline Charts)</strong>: 查看每日浏览量随时间的变化趋势。
+<img src="file:///C:/Users/jason/.gemini/antigravity/scratch/digibeat/docs/screenshots/home_timeline.png" alt="Timeline"></p>
+</li>
+<li><p><strong>多维对比 (Small Multiples)</strong>: 并排比较多个账号 (如 <code>joyfulsydney</code> vs <code>ave.lightmoments</code>) 的表现。
+<img src="file:///C:/Users/jason/.gemini/antigravity/scratch/digibeat/docs/screenshots/home_grid.png" alt="Grid"></p>
+</li>
+<li><p><strong>下钻分析 (Drill-Down)</strong>: 点击任意日期或账号，即可查看当日具体是<em>哪些视频</em>贡献了增长。</p>
+</li>
+</ul>
+<h3>2.3 自动同步 (Automated Sync)</h3>
+<ul>
+<li><strong>Apify 集成</strong>: 通过 Apify 自动抓取 TikTok/Instagram 数据。</li>
+<li><strong>Webhooks</strong>: 抓取完成后立即通过 Webhook 推送到 Next.js API。</li>
+<li><strong>高可用 (Resilience)</strong>: 包含去重和“Upsert”逻辑，确保数据完整性，即使重试也不会导致数据重复。</li>
+</ul>
+<h2>3. 架构与数据流 (Architecture &amp; Data Flow)</h2>
+<div class="mermaid">graph TD
+    A[Apify Actor] --&gt;|抓取数据 Scrapes Data| B(Webhook /api/webhook/apify)
+    B --&gt;|处理与去重 Process &amp; Dedupe| C{同步逻辑 Sync Logic}
+    C --&gt;|计算增量 Calculate Gains| D[(Supabase 数据库)]
+    D --&gt;|存储历史 Store History| E[tiktok_video_history]
+    D --&gt;|更新快照 Update Snapshot| F[daily_snapshots]
+    G[Next.js 前端] --&gt;|获取数据 Fetch Data| D
+    G --&gt;|展示 Display| H[Dashboard UI]
+</div>
+<h2>4. 使用指南 (Usage Guide)</h2>
+<h3>4.1 查看看板 (Viewing the Dashboard)</h3>
+<ol>
+<li>打开首页。</li>
+<li>选择 <strong>Target Date (目标日期)</strong> (默认为今日)。</li>
+<li>切换 <strong>TikTok</strong> / <strong>Instagram</strong> 标签页。</li>
+<li><strong>Metric Toggle (指标切换)</strong>: 在 Views/Likes/Comments 之间切换。</li>
+</ol>
+<h3>4.2 数据同步 (Syncing Data)</h3>
+<ul>
+<li><strong>自动同步</strong>: 通过 Cron 每日定时触发。</li>
+<li><strong>手动同步</strong>: 点击顶部的 <strong>&quot;Sync Now&quot;</strong> 按钮可立即触发刷新。</li>
+</ul>
+<h3>4.3 下钻详情 (Drill Down)</h3>
+<ul>
+<li>点击图表中的柱条或网格卡片。</li>
+<li>下方会出现详细表格，列出当日所有贡献增长的视频详情。</li>
+</ul>
+<h2>5. 技术栈 (Technology Stack)</h2>
+<ul>
+<li><strong>Frontend</strong>: Next.js 14 (App Router), TailwindCSS, ECharts.</li>
+<li><strong>Backend</strong>: Next.js API Routes.</li>
+<li><strong>Database</strong>: Supabase (PostgreSQL) + RLS Policies.</li>
+<li><strong>Data Source</strong>: Apify.</li>
+</ul>
+
+    </body>
+    </html>
+    
