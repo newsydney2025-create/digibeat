@@ -189,18 +189,22 @@ function generateMockReels(): InstagramReel[] {
 }
 
 export default function Home() {
-    const [view, setView] = useState<ViewState>('landing')
+    // Default to dashboard directly
+    const [view, setView] = useState<ViewState>('dashboard')
     const [sessionId, setSessionId] = useState('')
     const [platform, setPlatform] = useState<Platform>('tiktok')
 
     useEffect(() => {
         setSessionId(generateSessionId())
+        // Auto-start (fetch data) on mount
+        handleStart()
     }, [])
+
     const [accounts, setAccounts] = useState<TikTokAccount[]>([])
     const [videos, setVideos] = useState<TikTokVideo[]>([])
     const [instagramAccounts, setInstagramAccounts] = useState<InstagramAccount[]>([])
     const [instagramReels, setInstagramReels] = useState<InstagramReel[]>([])
-    const [isLoading, setIsLoading] = useState(false)
+    const [isLoading, setIsLoading] = useState(true) // Start loading immediately
 
     const handleStart = async () => {
         setIsLoading(true)
