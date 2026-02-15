@@ -11,6 +11,22 @@ interface ExcelDownloadButtonProps {
     instagramAccounts: InstagramAccount[]
 }
 
+interface ExcelRow {
+    Platform: string
+    Account: string
+    Nickname: string
+    Date: string
+    'Total Followers': number | string
+    'Total Views': number
+    'Total Likes': number
+    'Total Comments': number
+    'Total Shares': number | string
+    'Daily Views': number
+    'Daily Likes': number
+    'Daily Comments': number
+    'Daily Shares': number | string
+}
+
 export default function ExcelDownloadButton({ snapshots, accounts, instagramAccounts }: ExcelDownloadButtonProps) {
 
     const handleDownload = () => {
@@ -27,7 +43,7 @@ export default function ExcelDownloadButton({ snapshots, accounts, instagramAcco
         const dailyData = snapshots.filter(s => s.date === latestDate)
 
         // Prepare rows
-        const rows = []
+        const rows: ExcelRow[] = []
 
         // 1. TikTok Data
         accounts.forEach(acc => {
