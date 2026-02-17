@@ -1,0 +1,12 @@
+Accounts found matching *lightmoments*: 1
+ave.lightmoments: 7bcc9e61-ed80-4fe4-abdf-05d391cde25f
+Using account: ave.lightmoments (7bcc9e61-ed80-4fe4-abdf-05d391cde25f)
+Snapshot Gain: 49
+Video 7605800967296109832: +21 (Curr: 21, Prev: 0)
+Video 7605488413487205650: +75 (Curr: 75, Prev: 0)
+Video 7605399168982551826: +625 (Curr: 625, Prev: 0)
+Video 7605034008933600520: +46 (Curr: 90, Prev: 44)
+Video 7604745064065158407: +2 (Curr: 85, Prev: 83)
+Video 7604044949331414279: +1 (Curr: 224, Prev: 223)
+Calculated Sum: 770
+MISMATCH

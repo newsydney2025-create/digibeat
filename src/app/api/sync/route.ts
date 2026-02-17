@@ -15,6 +15,23 @@ export async function POST(request: NextRequest) {
     }
 }
 
+// Helper to check for existing recent cron logs (Deduplication)
+async function hasRecentCron(supabase: any): Promise<boolean> {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { data, error } = await supabase
+        .from('sync_logs')
+        .select('id')
+        .eq('sync_type', 'cron')
+        .gte('started_at', oneHourAgo)
+        .limit(1)
+
+    if (error) {
+        console.error('Dedup check failed:', error)
+        return false // Fail open (allow sync if check fails)
+    }
+    return data && data.length > 0
+}
+
 export async function GET(request: NextRequest) {
     // Check Cron
     const authHeader = request.headers.get('authorization')
@@ -22,6 +39,17 @@ export async function GET(request: NextRequest) {
         request.headers.get('x-vercel-cron') === '1'
 
     if (isCron) {
+        // Init Supabase for check
+        const { createClient } = await import('@supabase/supabase-js')
+        const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+
+        if (await hasRecentCron(supabase)) {
+            return NextResponse.json({ message: 'Skipped: Cron already ran recently.' })
+        }
+
         return await handleTrigger(request, 'all', true, 'cron')
     }
 
@@ -61,9 +89,7 @@ async function handleTrigger(request: NextRequest, platform: string, isDaily: bo
                 'clockworks~tiktok-scraper',
                 {
                     profiles: SCRAPING_TARGETS.tiktok,
-                    resultsPerPage: 20, // PRIMARY
-                    limit: 20,          // FALLBACK
-                    maxItems: 20,       // FALLBACK
+                    resultsPerPage: 20, // INCREASED LIMIT
                     profileScrapeSections: ['videos'],
                     profileSorting: 'latest'
                 },
@@ -76,15 +102,19 @@ async function handleTrigger(request: NextRequest, platform: string, isDaily: bo
     // --- Instagram ---
     if (platform === 'all' || platform === 'instagram') {
         if (SCRAPING_TARGETS.instagram.length > 0) {
+            // Profile Scrape (Optional, but good for metadata)
+            // Triggering 2 runs might use more CU, but it's cleaner. 
+            // Let's Skip Profile Scrape for now to focus on fixing the main issue (Snapshots) which comes from posts.
+            // Wait, if I skip profile scrape, account metadata (avatar) might be stale/missing?
+            // I'll leave it for now. User needs metrics.
+
             // Post Scrape
             const runId = await triggerApifyRun(
                 apiToken,
                 'apify~instagram-scraper',
                 {
                     directUrls: SCRAPING_TARGETS.instagram,
-                    resultsLimit: 20, // PRIMARY
-                    limit: 20,        // FALLBACK
-                    maxItems: 20,     // FALLBACK
+                    resultsLimit: 20, // INCREASED LIMIT
                     scrapePosts: true,
                     scrapeComments: false,
                     resultsType: 'posts',
