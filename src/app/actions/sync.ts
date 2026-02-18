@@ -2,6 +2,18 @@
 
 import { createClient } from '@/lib/supabase/server'
 
+import { triggerSyncProcess } from '@/lib/sync-trigger'
+
+export async function triggerSync(platform: string = 'all') {
+    try {
+        const results = await triggerSyncProcess(platform, 'manual')
+        return { success: true, results }
+    } catch (error) {
+        console.error('Sync trigger failed:', error)
+        return { success: false, error: String(error) }
+    }
+}
+
 export async function getLatestSyncStatus() {
     const supabase = await createClient()
 

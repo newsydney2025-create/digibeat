@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { getLatestSyncStatus } from '@/app/actions/sync'
+import { getLatestSyncStatus, triggerSync } from '@/app/actions/sync'
 import ExcelDownloadButton from '@/components/common/ExcelDownloadButton'
 import { DailySnapshot, TikTokAccount, InstagramAccount } from '@/types/database'
 
@@ -24,14 +24,10 @@ export default function Header({ sessionId, onLogout, snapshots, accounts, insta
         setStatusMessage('STARTING...')
 
         try {
-            // 1. Trigger the Sync
-            const res = await fetch('/api/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ platform: 'all', is_daily: true })
-            })
+            // 1. Trigger the Sync (Server Action)
+            const result = await triggerSync('all')
 
-            if (!res.ok) throw new Error('Failed to trigger sync')
+            if (!result.success) throw new Error(result.error)
 
             setStatusMessage('SYNCING...')
 
