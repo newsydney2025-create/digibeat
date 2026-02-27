@@ -265,7 +265,7 @@ export default function DashboardLayout({
                 />
 
                 <main className="flex-1 flex flex-col min-w-0 h-full p-6 gap-6 overflow-y-auto custom-scrollbar">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between relative z-20" style={{ overflow: 'visible' }}>
                         <Header
                             sessionId={sessionId}
                             onLogout={onLogout}

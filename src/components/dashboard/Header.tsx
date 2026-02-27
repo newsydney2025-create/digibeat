@@ -73,7 +73,7 @@ export default function Header({ sessionId, onLogout, snapshots, accounts, insta
     }
 
     return (
-        <header className="glass-panel p-4 rounded-xl flex justify-between items-center shrink-0">
+        <header className="glass-panel p-4 rounded-xl flex justify-between items-center shrink-0" style={{ overflow: 'visible' }}>
             <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded bg-gradient-to-br from-cyan-600 to-blue-700 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
