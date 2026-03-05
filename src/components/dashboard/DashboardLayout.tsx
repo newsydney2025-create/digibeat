@@ -23,8 +23,10 @@ interface DashboardLayoutProps {
     sessionId: string // kept for display
     accounts: TikTokAccount[]
     videos: TikTokVideo[]
+    videoStats: any[]
     instagramAccounts: InstagramAccount[]
     instagramReels: InstagramReel[]
+    instagramReelStats: any[]
     platform: Platform
     onPlatformChange: (platform: Platform) => void
     onLogout: () => void
@@ -36,8 +38,10 @@ export default function DashboardLayout({
     sessionId,
     accounts,
     videos,
+    videoStats,
     instagramAccounts,
     instagramReels,
+    instagramReelStats,
     platform,
     onPlatformChange,
     onLogout,
@@ -72,6 +76,20 @@ export default function DashboardLayout({
         return videos
     }, [platform, videos, instagramReels])
 
+    const activeStats = useMemo(() => {
+        if (platform === 'instagram') {
+            return instagramReelStats.map(stat => ({
+                account_id: stat.account_id,
+                play_count: stat.video_play_count,
+                digg_count: stat.likes_count,
+                comment_count: stat.comments_count,
+                share_count: 0,
+                collect_count: 0
+            }))
+        }
+        return videoStats
+    }, [platform, videoStats, instagramReelStats])
+
     // Generate snapshots for each account
     // Fixed: Always use DB snapshots for strict daily recording logic
     const activeSnapshots = useMemo(() => {
@@ -97,7 +115,7 @@ export default function DashboardLayout({
         const loadData = async () => {
             try {
                 const [snapshotsData, groupsData] = await Promise.all([
-                    fetchSnapshots(),
+                    fetchSnapshots(Date.now()),
                     fetchAccountGroups()
                 ])
                 console.log('Fetched snapshots:', snapshotsData.length, snapshotsData.slice(0, 3))
@@ -140,14 +158,16 @@ export default function DashboardLayout({
             }, { playCount: 0, diggCount: 0, commentCount: 0, shareCount: 0, collectCount: 0 })
         }
 
-        // Total view: Sum all current video stats
-        return filteredVideos.reduce(
-            (acc, video) => ({
-                playCount: acc.playCount + video.play_count,
-                diggCount: acc.diggCount + video.digg_count,
-                commentCount: acc.commentCount + video.comment_count,
-                shareCount: acc.shareCount + video.share_count,
-                collectCount: acc.collectCount + (video.collect_count || 0),
+        // Total view: Sum over ALL stats (bypassing the 200 frontend limit)
+        const filteredStats = activeStats.filter((v: any) => selectedAccounts.includes(v.account_id || ''))
+
+        return filteredStats.reduce(
+            (acc: DashboardMetrics, stat: any) => ({
+                playCount: acc.playCount + (stat.play_count || 0),
+                diggCount: acc.diggCount + (stat.digg_count || 0),
+                commentCount: acc.commentCount + (stat.comment_count || 0),
+                shareCount: acc.shareCount + (stat.share_count || 0),
+                collectCount: acc.collectCount + (stat.collect_count || 0),
             }),
             {
                 playCount: 0,
@@ -157,7 +177,7 @@ export default function DashboardLayout({
                 collectCount: 0,
             }
         )
-    }, [filteredVideos, viewMode, activeSnapshots, selectedAccounts])
+    }, [activeStats, viewMode, activeSnapshots, selectedAccounts])
 
     // State for restoring view after drill-down
     const [viewHistory, setViewHistory] = useState<{

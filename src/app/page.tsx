@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react'
 import LandingPage from '@/components/landing/LandingPage'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import ParticleCanvas from '@/components/landing/ParticleCanvas'
+import FullScreenLoader from '@/components/common/FullScreenLoader'
 import { generateSessionId } from '@/lib/utils/format'
 import { TikTokAccount, TikTokVideo, InstagramAccount, InstagramReel, Platform } from '@/types/database'
-import { fetchAccounts, fetchVideos } from './actions/tiktok'
-import { fetchInstagramAccounts, fetchInstagramReels } from './actions/instagram'
+import { fetchAccounts, fetchVideos, fetchVideoStats } from './actions/tiktok'
+import { fetchInstagramAccounts, fetchInstagramReels, fetchInstagramReelStats } from './actions/instagram'
 
 type ViewState = 'landing' | 'dashboard'
 
@@ -202,41 +203,50 @@ export default function Home() {
 
     const [accounts, setAccounts] = useState<TikTokAccount[]>([])
     const [videos, setVideos] = useState<TikTokVideo[]>([])
+    const [videoStats, setVideoStats] = useState<any[]>([])
     const [instagramAccounts, setInstagramAccounts] = useState<InstagramAccount[]>([])
     const [instagramReels, setInstagramReels] = useState<InstagramReel[]>([])
+    const [instagramReelStats, setInstagramReelStats] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true) // Start loading immediately
 
     const handleStart = async () => {
         setIsLoading(true)
 
         try {
+            const timestamp = Date.now()
             // Fetch TikTok data
-            const [fetchedAccounts, fetchedVideos] = await Promise.all([
-                fetchAccounts(),
-                fetchVideos(),
+            const [fetchedAccounts, fetchedVideos, fetchedVideoStats] = await Promise.all([
+                fetchAccounts(timestamp),
+                fetchVideos(timestamp),
+                fetchVideoStats(timestamp),
             ])
 
             if (fetchedAccounts.length > 0 && fetchedVideos.length > 0) {
                 setAccounts(fetchedAccounts)
                 setVideos(fetchedVideos)
+                setVideoStats(fetchedVideoStats)
             } else {
                 // Use mock data for demo
                 setAccounts(MOCK_ACCOUNTS)
                 setVideos(generateMockVideos())
+                setVideoStats([])
             }
 
             // Fetch Instagram data
-            const [igAccounts, igReels] = await Promise.all([
-                fetchInstagramAccounts(),
-                fetchInstagramReels(),
+            const [igAccounts, igReels, igReelStats] = await Promise.all([
+                fetchInstagramAccounts(timestamp),
+                fetchInstagramReels(undefined, timestamp),
+                fetchInstagramReelStats(undefined, timestamp),
             ])
 
             if (igAccounts.length > 0) {
                 setInstagramAccounts(igAccounts)
                 setInstagramReels(igReels)
+                setInstagramReelStats(igReelStats)
             } else {
                 setInstagramAccounts(MOCK_INSTAGRAM_ACCOUNTS)
                 setInstagramReels(generateMockReels())
+                setInstagramReelStats([])
             }
 
         } catch (error) {
@@ -262,18 +272,25 @@ export default function Home() {
 
     return (
         <main className="relative z-10 w-full min-h-screen flex flex-col">
-            {view === 'landing' && (
+            {isLoading && view === 'dashboard' && (
+                <FullScreenLoader message="Initializing Dashboard..." />
+            )}
+
+            {view === 'landing' && !isLoading && (
                 <LandingPage sessionId={sessionId} onStart={handleStart} />
             )}
-            {view === 'dashboard' && (
+
+            {view === 'dashboard' && !isLoading && (
                 <>
                     <ParticleCanvas />
                     <DashboardLayout
                         sessionId={sessionId}
                         accounts={accounts}
                         videos={videos}
+                        videoStats={videoStats}
                         instagramAccounts={instagramAccounts}
                         instagramReels={instagramReels}
+                        instagramReelStats={instagramReelStats}
                         platform={platform}
                         onPlatformChange={handlePlatformChange}
                         onLogout={handleLogout}
