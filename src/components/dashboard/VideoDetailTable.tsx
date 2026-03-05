@@ -59,10 +59,15 @@ export default function VideoDetailTable({ videos, accounts, platform = 'tiktok'
                                     <div className="flex items-center gap-3">
                                         {video.cover_url && (
                                             <img
-                                                src={platform === 'instagram' && video.cover_url ? `/api/proxy-image?url=${encodeURIComponent(video.cover_url)}` : video.cover_url}
+                                                src={video.cover_url ? `/api/proxy-image?url=${encodeURIComponent(video.cover_url)}` : ""}
                                                 alt="cover"
                                                 referrerPolicy="no-referrer"
                                                 className="w-8 h-10 object-cover rounded bg-gray-800"
+                                                onError={(e) => {
+                                                    const target = e.target as HTMLImageElement;
+                                                    target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%2352525b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>';
+                                                    target.style.objectFit = 'none';
+                                                }}
                                             />
                                         )}
                                         <p className="text-xs text-gray-300 truncate font-mono">

@@ -1,0 +1,13 @@
+Total in DB: 51, Expected: 41, Extra: 10
+
+Extra accounts to delete:
+1. username=cozylightdiary id=d365e66d-879a-4b1b-9129-2b14478bbfa6
+2. username=dadventures_au id=41d48d4e-27d8-4c2a-9883-8decf5b6e136
+3. username=energracie id=5739a983-9de1-4620-adcd-fe21630c6a09
+4. username=gowithjessie id=39f52954-b96a-4fc8-9629-0192dcc7b80b
+5. username=hey.lexi3 id=555fbcf5-c7ea-4997-8d3e-eb6507cc9e74
+6. username=leoafterhours1 id=384edfd5-5637-419d-9565-e260e27ae77e
+7. username=sophie.miller86 id=3d4b7612-4dca-4990-ae92-37edc8b4eec6
+8. username=sydneymomdiary id=f230534e-daf7-4ad7-977e-8373f91f78c9
+9. username=techwithjonny id=c6ee65ac-bc46-4aa1-a587-3867c1265fe0
+10. username=we2insydney id=cec71167-337f-4f18-a173-9ff9d80ac855
