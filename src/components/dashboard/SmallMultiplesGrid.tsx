@@ -82,7 +82,7 @@ export default function SmallMultiplesGrid({
 
         accountsToRender.forEach((account, idx) => {
             const chartId = `mini-chart-${account.id}`
-            let container = document.getElementById(chartId)
+            const container = document.getElementById(chartId)
             if (!container) return
 
             let chart = chartInstances.current.get(account.id)

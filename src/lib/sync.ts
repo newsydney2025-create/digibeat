@@ -206,7 +206,7 @@ export async function processTikTokDataBulk(supabase: SupabaseClient<Database>, 
         const item = v._rawItem as ApifyTikTokData // access original data needed? actually v has counts
         const hist = historyMap.get(v.video_id)
 
-        let gains = { gain_views: 0, gain_likes: 0, gain_comments: 0, gain_shares: 0 }
+        const gains = { gain_views: 0, gain_likes: 0, gain_comments: 0, gain_shares: 0 }
 
         if (isDaily) {
             if (hist) {
@@ -426,7 +426,7 @@ export async function processInstagramDataBulk(supabase: SupabaseClient<Database
 
     for (const r of reelsToUpsert) {
         const hist = historyMap.get(r.reel_id)
-        let gains = { gain_views: 0, gain_likes: 0, gain_comments: 0, gain_shares: 0 }
+        const gains = { gain_views: 0, gain_likes: 0, gain_comments: 0, gain_shares: 0 }
 
         if (isDaily) {
             if (hist) {
