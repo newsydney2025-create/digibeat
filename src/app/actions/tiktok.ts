@@ -3,29 +3,51 @@
 import { createClient } from '@/lib/supabase/server'
 import { TikTokAccount, TikTokVideo, SyncLog, DailySnapshot } from '@/types/database'
 
+import { unstable_noStore as noStore } from 'next/cache'
+
 /**
  * Fetch daily snapshots for chart history
  */
-export async function fetchSnapshots(): Promise<DailySnapshot[]> {
+export async function fetchSnapshots(_t?: number): Promise<DailySnapshot[]> {
+    noStore()
     const supabase = await createClient()
 
-    const { data, error } = await supabase
-        .from('daily_snapshots')
-        .select('*')
-        .order('date', { ascending: true })
+    let allData: DailySnapshot[] = []
+    let hasMore = true
+    let page = 0
+    const pageSize = 1000
 
-    if (error) {
-        console.error('Error fetching snapshots:', error)
-        return []
+    while (hasMore) {
+        const { data, error } = await supabase
+            .from('daily_snapshots')
+            .select('*')
+            .order('date', { ascending: true })
+            .range(page * pageSize, (page + 1) * pageSize - 1)
+
+        if (error) {
+            console.error('Error fetching snapshots:', error)
+            break
+        }
+
+        if (data && data.length > 0) {
+            allData = [...allData, ...data]
+            page++
+            if (data.length < pageSize) {
+                hasMore = false
+            }
+        } else {
+            hasMore = false
+        }
     }
 
-    return data || []
+    return allData
 }
 
 /**
  * Fetch all TikTok accounts from the database
  */
-export async function fetchAccounts(): Promise<TikTokAccount[]> {
+export async function fetchAccounts(_t?: number): Promise<TikTokAccount[]> {
+    noStore()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -45,16 +67,37 @@ export async function fetchAccounts(): Promise<TikTokAccount[]> {
 /**
  * Fetch all TikTok videos from the database
  */
-export async function fetchVideos(): Promise<TikTokVideo[]> {
+export async function fetchVideos(_t?: number): Promise<TikTokVideo[]> {
+    noStore()
     const supabase = await createClient()
 
     const { data, error } = await supabase
         .from('tiktok_videos')
         .select('*')
         .order('create_time', { ascending: false })
+        .limit(200)
 
     if (error) {
         console.error('Error fetching videos:', error)
+        return []
+    }
+
+    return data || []
+}
+
+/**
+ * Fetch simplified video stats for total aggregation without loading massive payloads
+ */
+export async function fetchVideoStats(_t?: number): Promise<{ account_id: string, play_count: number, digg_count: number, comment_count: number, share_count: number, collect_count: number }[]> {
+    noStore()
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+        .from('tiktok_videos')
+        .select('account_id, play_count, digg_count, comment_count, share_count, collect_count')
+
+    if (error) {
+        console.error('Error fetching video stats:', error)
         return []
     }
 
