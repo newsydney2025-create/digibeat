@@ -148,7 +148,7 @@ export async function processTikTokDataBulk(supabase: SupabaseClient<Database>, 
     // Video ID mapping: items map to videos using ID.
 
     for (const item of uniqueItems) {
-        if (!item.authorMeta?.name) continue
+        if (!item.id || !item.authorMeta?.name) continue
         const accountId = usernameToId.get(item.authorMeta.name)
         if (!accountId) continue
 
@@ -215,11 +215,23 @@ export async function processTikTokDataBulk(supabase: SupabaseClient<Database>, 
                 gains.gain_comments = Math.max(0, (v.comment_count || 0) - (hist.comment_count || 0))
                 gains.gain_shares = Math.max(0, (v.share_count || 0) - (hist.share_count || 0))
             } else {
-                // No history: gain = current
-                gains.gain_views = v.play_count || 0
-                gains.gain_likes = v.digg_count || 0
-                gains.gain_comments = v.comment_count || 0
-                gains.gain_shares = v.share_count || 0
+                // If there's no history from yesterday, we check if the video is new (posted yesterday or today).
+                // If it's a new video, the total count is its legitimate gain.
+                // If it's an old video missed yesterday, we set gain to 0 to avoid huge fake spikes.
+                const createTime = new Date(v.create_time || 0)
+                const isNewVideo = createTime >= new Date(yesterday)
+
+                if (isNewVideo) {
+                    gains.gain_views = v.play_count || 0
+                    gains.gain_likes = v.digg_count || 0
+                    gains.gain_comments = v.comment_count || 0
+                    gains.gain_shares = v.share_count || 0
+                } else {
+                    gains.gain_views = 0
+                    gains.gain_likes = 0
+                    gains.gain_comments = 0
+                    gains.gain_shares = 0
+                }
             }
 
             // Prepare Today's History Record
@@ -434,9 +446,21 @@ export async function processInstagramDataBulk(supabase: SupabaseClient<Database
                 gains.gain_likes = Math.max(0, (r.likes_count || 0) - (hist.likes_count || 0))
                 gains.gain_comments = Math.max(0, (r.comments_count || 0) - (hist.comments_count || 0))
             } else {
-                gains.gain_views = r.video_play_count || 0
-                gains.gain_likes = r.likes_count || 0
-                gains.gain_comments = r.comments_count || 0
+                // If there's no history from yesterday, we check if the reel is new (posted yesterday or today).
+                // If it's a new reel, the total count is its legitimate gain.
+                // If it's an old reel missed yesterday, we set gain to 0 to avoid huge fake spikes.
+                const timestamp = new Date(r.timestamp || 0)
+                const isNewReel = timestamp >= new Date(yesterday)
+
+                if (isNewReel) {
+                    gains.gain_views = r.video_play_count || 0
+                    gains.gain_likes = r.likes_count || 0
+                    gains.gain_comments = r.comments_count || 0
+                } else {
+                    gains.gain_views = 0
+                    gains.gain_likes = 0
+                    gains.gain_comments = 0
+                }
             }
 
             historyToUpsert.push({
