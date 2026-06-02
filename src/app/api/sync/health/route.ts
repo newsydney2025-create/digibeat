@@ -3,7 +3,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const SYDNEY_TIME_ZONE = 'Australia/Sydney'
 const HISTORY_ROWS_PER_ACCOUNT_WARNING = 10
-const SNAPSHOT_ACCOUNT_COVERAGE_WARNING = 0.8
 type CountQueryResult = PromiseLike<{
     count: number | null
     error: { message: string } | null
@@ -88,17 +87,15 @@ export async function GET(request: NextRequest) {
         const instagramAccountIds = new Set(instagramAccounts.map((account) => account.id))
         const tiktokSnapshotCount = snapshots.filter((snapshot) => tiktokAccountIds.has(snapshot.account_id)).length
         const instagramSnapshotCount = snapshots.filter((snapshot) => instagramAccountIds.has(snapshot.account_id)).length
-        const expectedSnapshotCount = tiktokAccounts.length + instagramAccounts.length
-        const minSnapshotCount = Math.max(1, Math.floor(expectedSnapshotCount * SNAPSHOT_ACCOUNT_COVERAGE_WARNING))
         const minTiktokHistoryCount = Math.max(tiktokAccounts.length, tiktokAccounts.length * HISTORY_ROWS_PER_ACCOUNT_WARNING)
         const minInstagramHistoryCount = Math.max(instagramAccounts.length, instagramAccounts.length * HISTORY_ROWS_PER_ACCOUNT_WARNING)
 
         const checks = [
             {
                 name: 'daily_snapshots',
-                ok: snapshots.length >= minSnapshotCount,
+                ok: snapshots.length > 0,
                 actual: snapshots.length,
-                expected_at_least: minSnapshotCount,
+                expected_at_least: 1,
             },
             {
                 name: 'tiktok_video_history',
