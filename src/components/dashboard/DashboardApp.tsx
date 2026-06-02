@@ -335,7 +335,6 @@ export default function DashboardApp() {
         }
 
         let renderedCriticalData = false
-        let usedFallbackData = false
         const markCriticalDataReady = () => {
             if (renderedCriticalData) return
             renderedCriticalData = true
@@ -352,7 +351,6 @@ export default function DashboardApp() {
         const tiktokTask = loadTikTokData(timestamp, markCriticalDataReady)
 
         const liveDataTask = Promise.allSettled([tiktokTask, instagramTask]).then(() => {
-            if (usedFallbackData) return
             markCriticalDataReady()
             setLoadStatus({
                 visible: true,
@@ -370,18 +368,12 @@ export default function DashboardApp() {
 
         const fallbackTask = delay(LIVE_DATA_SOFT_TIMEOUT_MS).then(() => {
             if (renderedCriticalData) return
-            usedFallbackData = true
-            setAccounts((current) => current.length > 0 ? current : MOCK_ACCOUNTS)
-            setVideos((current) => current.length > 0 ? current : generateMockVideos())
-            setVideoStats((current) => current.length > 0 ? current : [])
-            markCriticalDataReady()
             setLoadStatus({
                 visible: true,
-                title: 'Preview ready',
-                detail: 'Live data is still syncing in the background',
+                title: 'Still loading live data',
+                detail: 'Keeping the dashboard ready while data finishes',
                 progress: 86,
             })
-            hideLoadStatusSoon()
         })
 
         await Promise.race([liveDataTask, fallbackTask])
