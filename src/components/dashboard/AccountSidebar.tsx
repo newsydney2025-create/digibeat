@@ -508,27 +508,20 @@ export default function AccountSidebar({
                 <span className="text-[10px] font-bold text-gray-300 tracking-wider">
                     {platform === 'instagram' ? 'INSTAGRAM' : 'TIKTOK'} ACCOUNTS
                 </span>
-                <div className="flex gap-1">
+                <div className="flex items-center gap-1.5">
                     {onOpenGroupManager && (
                         <button
                             onClick={onOpenGroupManager}
-                            className="text-[10px] text-purple-400 hover:text-white transition-colors px-1"
-                            title="Manage Groups"
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-black/30 text-slate-300 transition-colors hover:border-blue-300/70 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/40"
+                            title="Settings"
+                            aria-label="Open settings"
                         >
-                            CFG
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05a2.2 2.2 0 1 1-3.11 3.11l-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.1 1.65V21.5a2.2 2.2 0 1 1-4.4 0v-.08a1.8 1.8 0 0 0-1.1-1.65 1.8 1.8 0 0 0-1.98.36l-.05.05a2.2 2.2 0 1 1-3.11-3.11l.05-.05A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.1H2.9a2.2 2.2 0 1 1 0-4.4h.08A1.8 1.8 0 0 0 4.6 8a1.8 1.8 0 0 0-.36-1.98l-.05-.05a2.2 2.2 0 1 1 3.11-3.11l.05.05A1.8 1.8 0 0 0 9.33 3.3a1.8 1.8 0 0 0 1.1-1.65V1.6a2.2 2.2 0 1 1 4.4 0v.08a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 1.98-.36l.05-.05a2.2 2.2 0 1 1 3.11 3.11l-.05.05A1.8 1.8 0 0 0 19.4 8c.27.66.92 1.1 1.64 1.1h.06a2.2 2.2 0 1 1 0 4.4h-.06A1.8 1.8 0 0 0 19.4 15Z" />
+                            </svg>
                         </button>
                     )}
-                    <button
-                        onClick={() => {
-                            setAddPanelOpen((open) => !open)
-                            setFormMessage(null)
-                        }}
-                        className="text-[10px] text-emerald-400 hover:text-white transition-colors px-1"
-                        title="Add Account"
-                        aria-label="Add account"
-                    >
-                        ADD
-                    </button>
                     <button
                         onClick={onToggleAll}
                         className="text-[10px] text-cyan-400 hover:text-white transition-colors"
