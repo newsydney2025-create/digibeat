@@ -8,9 +8,26 @@ import { unstable_noStore as noStore } from 'next/cache'
 /**
  * Fetch daily snapshots for chart history
  */
-export async function fetchSnapshots(_t?: number): Promise<DailySnapshot[]> {
+export async function fetchSnapshots(_t?: number, days = 90): Promise<DailySnapshot[]> {
     noStore()
     const supabase = await createClient()
+    const safeDays = Math.max(1, Math.min(365, days))
+    const { data: latestData, error: latestError } = await supabase
+        .from('daily_snapshots')
+        .select('date')
+        .order('date', { ascending: false })
+        .limit(1)
+
+    if (latestError) {
+        console.error('Error fetching latest snapshot date:', latestError)
+    }
+
+    const latestDate = Array.isArray(latestData) && latestData.length > 0
+        ? (latestData[0] as { date?: string }).date
+        : undefined
+    const cutoff = latestDate ? new Date(latestDate) : new Date()
+    cutoff.setDate(cutoff.getDate() - safeDays)
+    const cutoffDate = cutoff.toISOString().slice(0, 10)
 
     let allData: DailySnapshot[] = []
     let hasMore = true
@@ -21,6 +38,7 @@ export async function fetchSnapshots(_t?: number): Promise<DailySnapshot[]> {
         const { data, error } = await supabase
             .from('daily_snapshots')
             .select('*')
+            .gte('date', cutoffDate)
             .order('date', { ascending: true })
             .range(page * pageSize, (page + 1) * pageSize - 1)
 

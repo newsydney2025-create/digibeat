@@ -65,6 +65,8 @@ export default function DailyVideoList({ date, username, videos, onBack, platfor
                                                     src={item.cover ? `/api/proxy-image?url=${encodeURIComponent(item.cover)}` : ""}
                                                     alt="Cover"
                                                     referrerPolicy="no-referrer"
+                                                    loading="lazy"
+                                                    decoding="async"
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
                                                         const target = e.target as HTMLImageElement;

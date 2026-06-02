@@ -62,6 +62,8 @@ export default function VideoDetailTable({ videos, accounts, platform = 'tiktok'
                                                 src={video.cover_url ? `/api/proxy-image?url=${encodeURIComponent(video.cover_url)}` : ""}
                                                 alt="cover"
                                                 referrerPolicy="no-referrer"
+                                                loading="lazy"
+                                                decoding="async"
                                                 className="w-8 h-10 object-cover rounded bg-gray-800"
                                                 onError={(e) => {
                                                     const target = e.target as HTMLImageElement;

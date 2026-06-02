@@ -110,6 +110,89 @@ export async function createManagedAccount(input: {
     return { success: true, message: `@${username} has been added.` }
 }
 
+export async function updateManagedAccount(input: {
+    platform: Platform
+    accountId: string
+    account: string
+    displayName?: string
+}): Promise<AccountActionResult> {
+    const supabase = await createClient()
+    const username = cleanUsername(input.account, input.platform)
+    const displayName = input.displayName?.trim() || null
+
+    if (!username) {
+        return { success: false, message: 'Please enter a valid account username or URL.' }
+    }
+
+    if (input.platform === 'tiktok') {
+        const { data: existing, error: lookupError } = await supabase
+            .from('tiktok_accounts')
+            .select('id')
+            .ilike('username', username)
+            .neq('id', input.accountId)
+            .limit(1)
+            .maybeSingle()
+
+        if (lookupError) {
+            console.error('Error checking TikTok account:', lookupError)
+            return { success: false, message: lookupError.message }
+        }
+
+        if (existing) {
+            return { success: false, message: `@${username} already exists.` }
+        }
+
+        const { error } = await (supabase.from('tiktok_accounts') as any)
+            .update({
+                username,
+                nickname: displayName,
+                is_active: true,
+            })
+            .eq('id', input.accountId)
+
+        if (error) {
+            console.error('Error updating TikTok account:', error)
+            return { success: false, message: error.message }
+        }
+    } else {
+        const { data: existing, error: lookupError } = await supabase
+            .from('instagram_accounts')
+            .select('id')
+            .ilike('username', username)
+            .neq('id', input.accountId)
+            .limit(1)
+            .maybeSingle()
+
+        if (lookupError) {
+            console.error('Error checking Instagram account:', lookupError)
+            return { success: false, message: lookupError.message }
+        }
+
+        if (existing) {
+            return { success: false, message: `@${username} already exists.` }
+        }
+
+        const { error } = await (supabase.from('instagram_accounts') as any)
+            .update({
+                username,
+                full_name: displayName,
+                website: instagramUrl(username),
+                is_active: true,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', input.accountId)
+
+        if (error) {
+            console.error('Error updating Instagram account:', error)
+            return { success: false, message: error.message }
+        }
+    }
+
+    revalidatePath('/')
+    revalidatePath('/dashboard')
+    return { success: true, message: `@${username} has been updated.` }
+}
+
 export async function deleteManagedAccount(input: {
     platform: Platform
     accountId: string

@@ -11,7 +11,6 @@ import {
     TikTokAccount,
 } from '@/types/database'
 import { formatNumber, getAccountColor } from '@/lib/utils/format'
-import { createManagedAccount, deleteManagedAccount } from '@/app/actions/accounts'
 
 type SortMode = 'manual' | 'traffic'
 type TimeRange = '3D' | '7D' | '30D' | '90D'
@@ -40,7 +39,6 @@ interface AccountSidebarProps {
     onSelectAccounts?: (accountIds: string[]) => void
     onAssignAccount?: (accountId: string, groupId: string | null) => void
     onMoveGroup?: (groupId: string, parentId: string | null) => void
-    onAccountsChanged?: () => Promise<void>
 }
 
 const metricToSnapshotKey: Record<MetricKey, keyof DailySnapshot | null> = {
@@ -89,19 +87,12 @@ export default function AccountSidebar({
     onSelectAccounts,
     onAssignAccount,
     onMoveGroup,
-    onAccountsChanged,
 }: AccountSidebarProps) {
     const [expandedGroups, setExpandedGroups] = useState<string[]>([])
     const [hasAutoExpanded, setHasAutoExpanded] = useState(false)
     const [sortMode, setSortMode] = useState<SortMode>('manual')
     const [dragPayload, setDragPayload] = useState<DragPayload | null>(null)
     const [dragOverTarget, setDragOverTarget] = useState<string | null>(null)
-    const [addPanelOpen, setAddPanelOpen] = useState(false)
-    const [newAccount, setNewAccount] = useState('')
-    const [newDisplayName, setNewDisplayName] = useState('')
-    const [formMessage, setFormMessage] = useState<string | null>(null)
-    const [savingAccount, setSavingAccount] = useState(false)
-    const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null)
 
     const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts])
     const notesByAccount = useMemo(() => new Map(notes.map((note) => [`${note.platform}:${note.account_id}`, note.note])), [notes])
@@ -138,12 +129,6 @@ export default function AccountSidebar({
             setHasAutoExpanded(true)
         }
     }, [groups, hasAutoExpanded])
-
-    useEffect(() => {
-        setNewAccount('')
-        setNewDisplayName('')
-        setFormMessage(null)
-    }, [platform])
 
     const visibleDates = useMemo(() => {
         const days = Number.parseInt(timeRange, 10)
@@ -276,42 +261,6 @@ export default function AccountSidebar({
         }
     }
 
-    const handleCreateAccount = async (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault()
-        if (savingAccount) return
-
-        setSavingAccount(true)
-        setFormMessage(null)
-
-        const result = await createManagedAccount({
-            platform,
-            account: newAccount,
-            displayName: newDisplayName,
-        })
-
-        setFormMessage(result.message)
-        if (result.success) {
-            setNewAccount('')
-            setNewDisplayName('')
-            await onAccountsChanged?.()
-        }
-        setSavingAccount(false)
-    }
-
-    const handleDeleteAccount = async (account: TikTokAccount) => {
-        const confirmed = window.confirm(`Remove @${account.username} from active ${platform} accounts? Historical data will be kept.`)
-        if (!confirmed) return
-
-        setDeletingAccountId(account.id)
-        setFormMessage(null)
-        const result = await deleteManagedAccount({ platform, accountId: account.id })
-        setFormMessage(result.message)
-        if (result.success) {
-            await onAccountsChanged?.()
-        }
-        setDeletingAccountId(null)
-    }
-
     const renderAccount = (account: TikTokAccount, index: number) => {
         const isSelected = selectedAccounts.includes(account.id)
         const isHovered = hoveredAccount === account.id
@@ -386,23 +335,6 @@ export default function AccountSidebar({
                             )}
                         </div>
                     </div>
-                    <button
-                        type="button"
-                        onClick={(event) => {
-                            event.stopPropagation()
-                            handleDeleteAccount(account)
-                        }}
-                        disabled={deletingAccountId === account.id}
-                        className="h-6 w-6 shrink-0 rounded border border-white/10 bg-black/20 text-gray-500 opacity-0 transition-all hover:border-rose-400/50 hover:bg-rose-500/15 hover:text-rose-200 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-rose-300/50 disabled:cursor-wait disabled:opacity-60"
-                        title={`Remove @${account.username}`}
-                        aria-label={`Remove @${account.username}`}
-                    >
-                        <svg className="mx-auto h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 7V5h6v2" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M10 11v6M14 11v6M8 7l1 13h6l1-13" />
-                        </svg>
-                    </button>
                 </div>
             </div>
         )
@@ -509,19 +441,19 @@ export default function AccountSidebar({
                     {platform === 'instagram' ? 'INSTAGRAM' : 'TIKTOK'} ACCOUNTS
                 </span>
                 <div className="flex items-center gap-1.5">
-                    {onOpenGroupManager && (
-                        <button
-                            onClick={onOpenGroupManager}
-                            className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-black/30 text-slate-300 transition-colors hover:border-blue-300/70 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/40"
-                            title="Settings"
-                            aria-label="Open settings"
-                        >
-                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05a2.2 2.2 0 1 1-3.11 3.11l-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.1 1.65V21.5a2.2 2.2 0 1 1-4.4 0v-.08a1.8 1.8 0 0 0-1.1-1.65 1.8 1.8 0 0 0-1.98.36l-.05.05a2.2 2.2 0 1 1-3.11-3.11l.05-.05A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.1H2.9a2.2 2.2 0 1 1 0-4.4h.08A1.8 1.8 0 0 0 4.6 8a1.8 1.8 0 0 0-.36-1.98l-.05-.05a2.2 2.2 0 1 1 3.11-3.11l.05.05A1.8 1.8 0 0 0 9.33 3.3a1.8 1.8 0 0 0 1.1-1.65V1.6a2.2 2.2 0 1 1 4.4 0v.08a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 1.98-.36l.05-.05a2.2 2.2 0 1 1 3.11 3.11l-.05.05A1.8 1.8 0 0 0 19.4 8c.27.66.92 1.1 1.64 1.1h.06a2.2 2.2 0 1 1 0 4.4h-.06A1.8 1.8 0 0 0 19.4 15Z" />
-                            </svg>
-                        </button>
-                    )}
+                    <button
+                        onClick={onOpenGroupManager}
+                        disabled={!onOpenGroupManager}
+                        className="flex h-7 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-black/30 px-2 text-slate-300 transition-colors hover:border-blue-300/70 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/40"
+                        title="Open CFG"
+                        aria-label="Open CFG"
+                    >
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05a2.2 2.2 0 1 1-3.11 3.11l-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.1 1.65V21.5a2.2 2.2 0 1 1-4.4 0v-.08a1.8 1.8 0 0 0-1.1-1.65 1.8 1.8 0 0 0-1.98.36l-.05.05a2.2 2.2 0 1 1-3.11-3.11l.05-.05A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.1H2.9a2.2 2.2 0 1 1 0-4.4h.08A1.8 1.8 0 0 0 4.6 8a1.8 1.8 0 0 0-.36-1.98l-.05-.05a2.2 2.2 0 1 1 3.11-3.11l.05.05A1.8 1.8 0 0 0 9.33 3.3a1.8 1.8 0 0 0 1.1-1.65V1.6a2.2 2.2 0 1 1 4.4 0v.08a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 1.98-.36l.05-.05a2.2 2.2 0 1 1 3.11 3.11l-.05.05A1.8 1.8 0 0 0 19.4 8c.27.66.92 1.1 1.64 1.1h.06a2.2 2.2 0 1 1 0 4.4h-.06A1.8 1.8 0 0 0 19.4 15Z" />
+                        </svg>
+                        <span className="text-[9px] font-bold uppercase tracking-wider">CFG</span>
+                    </button>
                     <button
                         onClick={onToggleAll}
                         className="text-[10px] text-cyan-400 hover:text-white transition-colors"
@@ -545,57 +477,6 @@ export default function AccountSidebar({
                     </button>
                 ))}
             </div>
-
-            {addPanelOpen && (
-                <form onSubmit={handleCreateAccount} className="border-b border-white/5 bg-black/20 p-2 space-y-2">
-                    <label className="block">
-                        <span className="mb-1 block text-[8px] uppercase tracking-wider text-gray-500">
-                            {platform === 'instagram' ? 'Instagram URL or username' : 'TikTok username or URL'}
-                        </span>
-                        <input
-                            value={newAccount}
-                            onChange={(event) => setNewAccount(event.target.value)}
-                            placeholder={platform === 'instagram' ? 'instagram.com/name' : '@username'}
-                            className="h-8 w-full rounded-md border border-white/10 bg-black/40 px-2 text-[11px] text-gray-100 outline-none transition-colors placeholder:text-gray-700 focus:border-cyan-400/60"
-                        />
-                    </label>
-                    <label className="block">
-                        <span className="mb-1 block text-[8px] uppercase tracking-wider text-gray-500">
-                            Display name optional
-                        </span>
-                        <input
-                            value={newDisplayName}
-                            onChange={(event) => setNewDisplayName(event.target.value)}
-                            placeholder="Owner or nickname"
-                            className="h-8 w-full rounded-md border border-white/10 bg-black/40 px-2 text-[11px] text-gray-100 outline-none transition-colors placeholder:text-gray-700 focus:border-cyan-400/60"
-                        />
-                    </label>
-                    {formMessage && (
-                        <div className="rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[9px] text-gray-400">
-                            {formMessage}
-                        </div>
-                    )}
-                    <div className="flex gap-1.5">
-                        <button
-                            type="submit"
-                            disabled={savingAccount}
-                            className="flex-1 rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-1.5 text-[9px] font-bold uppercase tracking-wider text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:cursor-wait disabled:opacity-50"
-                        >
-                            {savingAccount ? 'Saving' : 'Add'}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setAddPanelOpen(false)
-                                setFormMessage(null)
-                            }}
-                            className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-[9px] uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-200"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </form>
-            )}
 
             <div className="overflow-y-auto p-1.5 space-y-2 custom-scroll flex-1">
                 <div

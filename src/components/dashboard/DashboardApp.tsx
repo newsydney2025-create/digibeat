@@ -1,16 +1,34 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import LandingPage from '@/components/landing/LandingPage'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import ParticleCanvas from '@/components/landing/ParticleCanvas'
-import FullScreenLoader from '@/components/common/FullScreenLoader'
+import DashboardLoadingOverlay from '@/components/dashboard/DashboardLoadingOverlay'
 import { generateSessionId } from '@/lib/utils/format'
 import { TikTokAccount, TikTokVideo, InstagramAccount, InstagramReel, Platform } from '@/types/database'
 import { fetchAccounts, fetchVideos, fetchVideoStats } from '@/app/actions/tiktok'
 import { fetchInstagramAccounts, fetchInstagramReels, fetchInstagramReelStats } from '@/app/actions/instagram'
 
 type ViewState = 'landing' | 'dashboard'
+
+interface LoadStatus {
+    visible: boolean
+    title: string
+    detail: string
+    progress: number
+}
+
+const INITIAL_LOAD_STATUS: LoadStatus = {
+    visible: true,
+    title: 'Preparing dashboard',
+    detail: 'Loading the first screen',
+    progress: 12,
+}
+
+const LIVE_DATA_SOFT_TIMEOUT_MS = 8000
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Mock data for demo purposes when database is empty
 const MOCK_ACCOUNTS: TikTokAccount[] = [
@@ -158,7 +176,7 @@ function generateMockReels(): InstagramReel[] {
     const reels: InstagramReel[] = []
     const now = Date.now()
 
-    MOCK_INSTAGRAM_ACCOUNTS.forEach((account, idx) => {
+    MOCK_INSTAGRAM_ACCOUNTS.forEach((account) => {
         for (let i = 0; i < 10; i++) {
             const daysAgo = Math.floor(Math.random() * 30)
             const createTime = new Date(now - daysAgo * 24 * 60 * 60 * 1000)
@@ -194,45 +212,78 @@ export default function DashboardApp() {
     const [view, setView] = useState<ViewState>('dashboard')
     const [sessionId, setSessionId] = useState('')
     const [platform, setPlatform] = useState<Platform>('tiktok')
-
-    useEffect(() => {
-        setSessionId(generateSessionId())
-        // Auto-start (fetch data) on mount
-        handleStart()
-    }, [])
-
     const [accounts, setAccounts] = useState<TikTokAccount[]>([])
     const [videos, setVideos] = useState<TikTokVideo[]>([])
     const [videoStats, setVideoStats] = useState<any[]>([])
     const [instagramAccounts, setInstagramAccounts] = useState<InstagramAccount[]>([])
     const [instagramReels, setInstagramReels] = useState<InstagramReel[]>([])
     const [instagramReelStats, setInstagramReelStats] = useState<any[]>([])
-    const [isLoading, setIsLoading] = useState(true) // Start loading immediately
+    const [isLoading, setIsLoading] = useState(true) // Tracks the first critical data pass.
+    const [loadStatus, setLoadStatus] = useState<LoadStatus>(INITIAL_LOAD_STATUS)
+    const hasStartedRef = useRef(false)
+    const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    const handleStart = async (showLoader = true) => {
-        if (showLoader) setIsLoading(true)
+    const loadTikTokData = useCallback(async (timestamp: number, onPrimaryReady?: () => void) => {
+        let primarySettled = false
+        let hasRealAccounts = false
 
-        try {
-            const timestamp = Date.now()
-            // Fetch TikTok data
-            const [fetchedAccounts, fetchedVideos, fetchedVideoStats] = await Promise.all([
-                fetchAccounts(timestamp),
-                fetchVideos(timestamp),
-                fetchVideoStats(timestamp),
-            ])
+        const markPrimaryReady = () => {
+            if (primarySettled) return
+            primarySettled = true
+            onPrimaryReady?.()
+        }
 
-            if (fetchedAccounts.length > 0) {
-                setAccounts(fetchedAccounts)
-                setVideos(fetchedVideos)
-                setVideoStats(fetchedVideoStats)
-            } else {
-                // Use mock data for demo
+        const accountsTask = fetchAccounts(timestamp)
+            .then((fetchedAccounts) => {
+                hasRealAccounts = fetchedAccounts.length > 0
+
+                if (hasRealAccounts) {
+                    setAccounts(fetchedAccounts)
+                } else {
+                    setAccounts(MOCK_ACCOUNTS)
+                    setVideos(generateMockVideos())
+                    setVideoStats([])
+                }
+
+                markPrimaryReady()
+            })
+            .catch((error) => {
+                console.error('Error fetching TikTok accounts:', error)
                 setAccounts(MOCK_ACCOUNTS)
                 setVideos(generateMockVideos())
                 setVideoStats([])
-            }
+                markPrimaryReady()
+            })
 
-            // Fetch Instagram data
+        const videosTask = fetchVideos(timestamp)
+            .then((fetchedVideos) => {
+                if (hasRealAccounts || fetchedVideos.length > 0) {
+                    setVideos(fetchedVideos)
+                }
+            })
+            .catch((error) => {
+                console.error('Error fetching TikTok videos:', error)
+            })
+
+        const statsTask = delay(1800)
+            .then(() => fetchVideoStats(timestamp))
+            .then((fetchedVideoStats) => {
+                if (hasRealAccounts || fetchedVideoStats.length > 0) {
+                    setVideoStats(fetchedVideoStats)
+                }
+            })
+            .catch((error) => {
+                console.error('Error fetching TikTok video stats:', error)
+            })
+
+        void statsTask
+
+        await Promise.allSettled([accountsTask, videosTask])
+        markPrimaryReady()
+    }, [])
+
+    const loadInstagramData = useCallback(async (timestamp: number) => {
+        try {
             const [igAccounts, igReels, igReelStats] = await Promise.all([
                 fetchInstagramAccounts(timestamp),
                 fetchInstagramReels(undefined, timestamp),
@@ -248,39 +299,133 @@ export default function DashboardApp() {
                 setInstagramReels(generateMockReels())
                 setInstagramReelStats([])
             }
-
         } catch (error) {
-            console.error('Error fetching data:', error)
-            // Fall back to mock data
-            setAccounts(MOCK_ACCOUNTS)
-            setVideos(generateMockVideos())
+            console.error('Error fetching Instagram data:', error)
             setInstagramAccounts(MOCK_INSTAGRAM_ACCOUNTS)
             setInstagramReels(generateMockReels())
+            setInstagramReelStats([])
+        }
+    }, [])
+
+    const hideLoadStatusSoon = useCallback(() => {
+        if (dismissTimerRef.current) {
+            clearTimeout(dismissTimerRef.current)
+        }
+        dismissTimerRef.current = setTimeout(() => {
+            setLoadStatus((current) => ({ ...current, visible: false }))
+        }, 650)
+    }, [])
+
+    const handleStart = useCallback(async (showLoader = true) => {
+        if (dismissTimerRef.current) {
+            clearTimeout(dismissTimerRef.current)
         }
 
+        const timestamp = Date.now()
         setView('dashboard')
-        if (showLoader) setIsLoading(false)
-    }
+        setLoadStatus({
+            visible: true,
+            title: showLoader ? 'Connecting data sources' : 'Refreshing dashboard',
+            detail: showLoader ? 'Fetching priority TikTok metrics' : 'Updating metrics in the background',
+            progress: showLoader ? 18 : 45,
+        })
+
+        if (showLoader) {
+            setIsLoading(true)
+        }
+
+        let renderedCriticalData = false
+        let usedFallbackData = false
+        const markCriticalDataReady = () => {
+            if (renderedCriticalData) return
+            renderedCriticalData = true
+            setIsLoading(false)
+            setLoadStatus({
+                visible: true,
+                title: 'Dashboard ready',
+                detail: 'Rendering charts while secondary data finishes',
+                progress: 72,
+            })
+        }
+
+        const instagramTask = loadInstagramData(timestamp)
+        const tiktokTask = loadTikTokData(timestamp, markCriticalDataReady)
+
+        const liveDataTask = Promise.allSettled([tiktokTask, instagramTask]).then(() => {
+            if (usedFallbackData) return
+            markCriticalDataReady()
+            setLoadStatus({
+                visible: true,
+                title: 'Dashboard ready',
+                detail: 'Primary metrics are ready; totals continue in the background',
+                progress: 100,
+            })
+            hideLoadStatusSoon()
+        })
+
+        if (!showLoader) {
+            await liveDataTask
+            return
+        }
+
+        const fallbackTask = delay(LIVE_DATA_SOFT_TIMEOUT_MS).then(() => {
+            if (renderedCriticalData) return
+            usedFallbackData = true
+            setAccounts((current) => current.length > 0 ? current : MOCK_ACCOUNTS)
+            setVideos((current) => current.length > 0 ? current : generateMockVideos())
+            setVideoStats((current) => current.length > 0 ? current : [])
+            markCriticalDataReady()
+            setLoadStatus({
+                visible: true,
+                title: 'Preview ready',
+                detail: 'Live data is still syncing in the background',
+                progress: 86,
+            })
+            hideLoadStatusSoon()
+        })
+
+        await Promise.race([liveDataTask, fallbackTask])
+    }, [hideLoadStatusSoon, loadInstagramData, loadTikTokData])
+
+    useEffect(() => {
+        setSessionId(generateSessionId())
+        if (!hasStartedRef.current) {
+            hasStartedRef.current = true
+            handleStart()
+        }
+
+        return () => {
+            if (dismissTimerRef.current) {
+                clearTimeout(dismissTimerRef.current)
+            }
+        }
+    }, [handleStart])
 
     const handlePlatformChange = (newPlatform: Platform) => {
         setPlatform(newPlatform)
     }
 
     const handleLogout = () => {
+        setIsLoading(false)
+        setLoadStatus((current) => ({ ...current, visible: false }))
         setView('landing')
     }
 
     return (
         <main className="relative z-10 w-full min-h-screen flex flex-col">
-            {isLoading && view === 'dashboard' && (
-                <FullScreenLoader message="Initializing Dashboard..." />
+            {loadStatus.visible && view === 'dashboard' && (
+                <DashboardLoadingOverlay
+                    title={loadStatus.title}
+                    detail={loadStatus.detail}
+                    progress={loadStatus.progress}
+                />
             )}
 
             {view === 'landing' && !isLoading && (
                 <LandingPage sessionId={sessionId} onStart={handleStart} />
             )}
 
-            {view === 'dashboard' && !isLoading && (
+            {view === 'dashboard' && (
                 <>
                     <ParticleCanvas />
                     <DashboardLayout
@@ -295,6 +440,7 @@ export default function DashboardApp() {
                         onPlatformChange={handlePlatformChange}
                         onDataRefresh={() => handleStart(false)}
                         onLogout={handleLogout}
+                        isDataLoading={isLoading}
                     />
                 </>
             )}

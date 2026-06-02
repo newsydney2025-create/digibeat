@@ -1,25 +1,56 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
-import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { TikTokAccount, TikTokVideo, MetricKey, DashboardMetrics, DailySnapshot, AccountGroup, AccountGroupMember, AccountNote, InstagramAccount, InstagramReel, Platform, PublishingBonusStats } from '@/types/database'
 import Header from './Header'
 import AccountSidebar from './AccountSidebar'
 import MetricCards from './MetricCards'
-import TimelineChart from './TimelineChart'
-import SmallMultiplesGrid from './SmallMultiplesGrid'
-import TopContentChart from './TopContentChart'
-import DailyVideoList from './DailyVideoList'
-import ImpactScatterChart from './ImpactScatterChart'
-import HashtagChart from './HashtagChart'
-import TrafficShareChart from './TrafficShareChart'
-import VideoDetailTable from './VideoDetailTable'
 import GroupManager from './GroupManager'
-import { formatNumber } from '@/lib/utils/format'
 import { fetchSnapshots } from '@/app/actions/tiktok'
 import { assignAccountToManager, fetchAccountManagementState, fetchPublishingBonusStats, saveGroupPositions } from '@/app/actions/account-management'
 import PlatformSwitcher from '@/components/common/PlatformSwitcher'
 import { adaptReelsToVideos, adaptInstagramAccounts } from '@/lib/utils/platformAdapter'
+
+const TimelineChart = dynamic(() => import('./TimelineChart'), {
+    ssr: false,
+    loading: () => <ChartSkeleton label="Loading trend chart" />,
+})
+
+const SmallMultiplesGrid = dynamic(() => import('./SmallMultiplesGrid'), {
+    ssr: false,
+    loading: () => <ChartSkeleton label="Loading account grid" />,
+})
+
+const TopContentChart = dynamic(() => import('./TopContentChart'), {
+    ssr: false,
+    loading: () => <ChartSkeleton label="Loading top content" compact />,
+})
+
+const DailyVideoList = dynamic(() => import('./DailyVideoList'), {
+    ssr: false,
+    loading: () => <ChartSkeleton label="Loading daily details" />,
+})
+
+const ImpactScatterChart = dynamic(() => import('./ImpactScatterChart'), {
+    ssr: false,
+    loading: () => <ChartSkeleton label="Loading impact analysis" />,
+})
+
+const HashtagChart = dynamic(() => import('./HashtagChart'), {
+    ssr: false,
+    loading: () => <ChartSkeleton label="Loading hashtags" compact />,
+})
+
+const TrafficShareChart = dynamic(() => import('./TrafficShareChart'), {
+    ssr: false,
+    loading: () => <ChartSkeleton label="Loading traffic share" compact />,
+})
+
+const VideoDetailTable = dynamic(() => import('./VideoDetailTable'), {
+    ssr: false,
+    loading: () => <TableSkeleton />,
+})
 
 interface DashboardLayoutProps {
     sessionId: string // kept for display
@@ -33,9 +64,65 @@ interface DashboardLayoutProps {
     onPlatformChange: (platform: Platform) => void
     onDataRefresh: () => Promise<void>
     onLogout: () => void
+    isDataLoading?: boolean
 }
 
 type TimeRange = '3D' | '7D' | '30D' | '90D'
+
+function ChartSkeleton({ label, compact = false }: { label: string; compact?: boolean }) {
+    return (
+        <div className={`dashboard-shimmer flex h-full min-h-0 w-full items-center justify-center rounded-lg border border-white/5 bg-white/[0.03] ${compact ? 'p-3' : 'p-6'}`}>
+            <div className="flex flex-col items-center gap-3 text-center">
+                <div className="relative h-9 w-9">
+                    <div className="absolute inset-0 rounded-full border border-cyan-400/20" />
+                    <div className="absolute inset-1 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+                </div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-gray-500">{label}</p>
+            </div>
+        </div>
+    )
+}
+
+function MetricCardsSkeleton({ platform }: { platform: Platform }) {
+    const metricCount = platform === 'instagram' ? 3 : 4
+
+    return (
+        <div className={`grid gap-4 mb-6 shrink-0 ${platform === 'instagram' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2 md:grid-cols-4'}`}>
+            {Array.from({ length: metricCount }).map((_, index) => (
+                <div key={index} className="dashboard-shimmer h-40 rounded-2xl border border-white/5 bg-black/20 p-5">
+                    <div className="flex items-start justify-between">
+                        <div className="h-3 w-24 rounded-full bg-white/10" />
+                        <div className="h-10 w-10 rounded-full bg-white/10" />
+                    </div>
+                    <div className="mt-14 h-10 w-28 rounded-lg bg-white/10" />
+                </div>
+            ))}
+        </div>
+    )
+}
+
+function TableSkeleton() {
+    return (
+        <div className="glass-panel dashboard-shimmer flex h-full flex-col overflow-hidden rounded-xl">
+            <div className="flex items-center justify-between border-b border-white/5 p-4">
+                <div className="h-4 w-44 rounded bg-white/10" />
+                <div className="h-3 w-24 rounded bg-white/10" />
+            </div>
+            <div className="space-y-3 p-4">
+                {Array.from({ length: 7 }).map((_, index) => (
+                    <div key={index} className="grid grid-cols-7 gap-4">
+                        <div className="col-span-2 h-4 rounded bg-white/10" />
+                        <div className="h-4 rounded bg-white/10" />
+                        <div className="h-4 rounded bg-white/10" />
+                        <div className="h-4 rounded bg-white/10" />
+                        <div className="h-4 rounded bg-white/10" />
+                        <div className="h-4 rounded bg-white/10" />
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
 
 export default function DashboardLayout({
     sessionId,
@@ -49,6 +136,7 @@ export default function DashboardLayout({
     onPlatformChange,
     onDataRefresh,
     onLogout,
+    isDataLoading = false,
 }: DashboardLayoutProps) {
     const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
         accounts.map((a) => a.id)
@@ -60,7 +148,7 @@ export default function DashboardLayout({
     const [members, setMembers] = useState<AccountGroupMember[]>([])
     const [accountNotes, setAccountNotes] = useState<AccountNote[]>([])
     const [bonusStats, setBonusStats] = useState<PublishingBonusStats | null>(null)
-    const [bonusLoading, setBonusLoading] = useState(true)
+    const [isSnapshotLoading, setIsSnapshotLoading] = useState(true)
     const [groupManagerOpen, setGroupManagerOpen] = useState(false)
 
     // Hoisted state variables (must be before useMemo)
@@ -126,44 +214,70 @@ export default function DashboardLayout({
     }
 
     const refreshBonusStats = async () => {
-        setBonusLoading(true)
         try {
             const data = await fetchPublishingBonusStats()
             setBonusStats(data)
         } catch (error) {
             console.error('Failed to load bonus stats', error)
             setBonusStats(null)
-        } finally {
-            setBonusLoading(false)
         }
     }
 
     const refreshAfterAccountChange = async () => {
         await onDataRefresh()
         await refreshManagement()
-        await refreshBonusStats()
+        void refreshBonusStats()
     }
 
-    // Fetch daily snapshots and account management first; bonus stats can load independently.
+    // Fetch account management first; chart history and bonus stats can load independently.
     useEffect(() => {
-        const loadData = async () => {
+        const loadManagement = async () => {
             try {
-                const [snapshotsData, managementData] = await Promise.all([
-                    fetchSnapshots(Date.now()),
-                    fetchAccountManagementState(),
-                ])
-                console.log('Fetched snapshots:', snapshotsData.length, snapshotsData.slice(0, 3))
-                setSnapshots(snapshotsData)
+                const managementData = await fetchAccountManagementState()
                 setGroups(managementData.groups)
                 setMembers(managementData.members)
                 setAccountNotes(managementData.notes)
             } catch (error) {
-                console.error('Failed to load data', error)
+                console.error('Failed to load account management data', error)
             }
         }
 
-        loadData()
-        refreshBonusStats()
+        void loadManagement()
+    }, [])
+
+    useEffect(() => {
+        let cancelled = false
+
+        const loadSnapshots = async () => {
+            try {
+                setIsSnapshotLoading(true)
+                const rangeDays = Number.parseInt(timeRange, 10)
+                const snapshotsData = await fetchSnapshots(Date.now(), rangeDays)
+                if (!cancelled) {
+                    setSnapshots(snapshotsData)
+                }
+            } catch (error) {
+                console.error('Failed to load snapshots', error)
+            } finally {
+                if (!cancelled) {
+                    setIsSnapshotLoading(false)
+                }
+            }
+        }
+
+        void loadSnapshots()
+
+        return () => {
+            cancelled = true
+        }
+    }, [timeRange])
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            void refreshBonusStats()
+        }, 2500)
+
+        return () => window.clearTimeout(timer)
     }, [])
 
     // Filter videos by selected accounts
@@ -277,6 +391,9 @@ export default function DashboardLayout({
         }
     }
 
+    const showInitialSkeleton = isDataLoading && activeAccounts.length === 0
+    const showPrimaryMetricsSkeleton = showInitialSkeleton || (viewMode === 'daily' && isSnapshotLoading && activeSnapshots.length === 0)
+
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-cyan-500/30">
             {/* Background Gradients */}
@@ -326,14 +443,13 @@ export default function DashboardLayout({
                     onAssignAccount={async (accountId, groupId) => {
                         await assignAccountToManager({ platform, account_id: accountId, group_id: groupId })
                         await refreshManagement()
-                        await refreshBonusStats()
+                        void refreshBonusStats()
                     }}
                     onMoveGroup={async (groupId, parentId) => {
                         const siblings = groups.filter((group) => (group.parent_id || null) === parentId && group.id !== groupId)
                         await saveGroupPositions([{ id: groupId, parent_id: parentId, sort_order: siblings.length }])
                         await refreshManagement()
                     }}
-                    onAccountsChanged={refreshAfterAccountChange}
                 />
 
                 <main className="flex-1 flex flex-col min-w-0 h-full p-6 gap-6 overflow-y-auto custom-scrollbar">
@@ -473,16 +589,22 @@ export default function DashboardLayout({
                         </div>
 
                         {!detailView && (
+                            showPrimaryMetricsSkeleton ? (
+                                <MetricCardsSkeleton platform={platform} />
+                            ) : (
                             <MetricCards
                                 totals={totals}
                                 currentMetric={currentMetric}
                                 onSelectMetric={setCurrentMetric}
                                 platform={platform}
                             />
+                            )
                         )}
 
                         <div className={`flex-1 w-full mt-4 relative z-10 min-h-0 ${detailView ? 'h-full' : ''}`}>
-                            {detailView ? (
+                            {showPrimaryMetricsSkeleton ? (
+                                <ChartSkeleton label="Waiting for first metrics" />
+                            ) : detailView ? (
                                 <DailyVideoList
                                     date={detailView.date}
                                     username={detailView.username}
@@ -534,75 +656,57 @@ export default function DashboardLayout({
                     <div className="grid grid-cols-12 gap-6 h-[280px] shrink-0">
                         <div className="col-span-4 glass-panel p-4 rounded-xl flex flex-col min-h-0">
                             <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Traffic Share</h3>
-                            <TrafficShareChart
-                                videos={filteredVideos}
-                                accounts={activeAccounts}
-                                selectedAccounts={selectedAccounts}
-                                currentMetric={currentMetric}
-                            />
+                            {showInitialSkeleton ? (
+                                <ChartSkeleton label="Waiting for traffic data" compact />
+                            ) : (
+                                <TrafficShareChart
+                                    videos={filteredVideos}
+                                    accounts={activeAccounts}
+                                    selectedAccounts={selectedAccounts}
+                                    currentMetric={currentMetric}
+                                />
+                            )}
                         </div>
                         <div className="col-span-4 glass-panel p-4 rounded-xl flex flex-col min-h-0">
                             <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Top Performing</h3>
-                            <TopContentChart
-                                videos={filteredVideos}
-                                accounts={activeAccounts}
-                                currentMetric={currentMetric}
-                                onVideoClick={(url) => window.open(url, '_blank')}
-                            />
+                            {showInitialSkeleton ? (
+                                <ChartSkeleton label="Waiting for top content" compact />
+                            ) : (
+                                <TopContentChart
+                                    videos={filteredVideos}
+                                    accounts={activeAccounts}
+                                    currentMetric={currentMetric}
+                                    onVideoClick={(url) => window.open(url, '_blank')}
+                                />
+                            )}
                         </div>
                         <div className="col-span-4 glass-panel p-4 rounded-xl flex flex-col min-h-0">
                             <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Hot Hashtags</h3>
-                            <HashtagChart videos={filteredVideos} />
+                            {showInitialSkeleton ? (
+                                <ChartSkeleton label="Waiting for hashtags" compact />
+                            ) : (
+                                <HashtagChart videos={filteredVideos} />
+                            )}
                         </div>
                     </div>
 
                     {/* Third Row: Impact Analysis */}
                     <div className="glass-panel p-4 rounded-xl flex flex-col min-h-0 h-[280px] shrink-0">
                         <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Impact Scatter Analysis</h3>
-                        <ImpactScatterChart videos={filteredVideos} accounts={activeAccounts} onVideoClick={(url) => window.open(url, '_blank')} />
+                        {showInitialSkeleton ? (
+                            <ChartSkeleton label="Waiting for impact data" />
+                        ) : (
+                            <ImpactScatterChart videos={filteredVideos} accounts={activeAccounts} onVideoClick={(url) => window.open(url, '_blank')} />
+                        )}
                     </div>
-
-                    <Link
-                        id="publishing-bonus"
-                        href="/publishing-bonus"
-                        className="glass-panel rounded-xl p-5 shrink-0 border border-white/10 hover:border-amber-400/50 hover:bg-white/[0.04] transition-colors group"
-                    >
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                            <div>
-                                <h3 className="text-sm font-bold text-gray-300 uppercase tracking-widest flex items-center gap-2">
-                                    <span className="w-1.5 h-5 bg-amber-400 rounded-full shadow-[0_0_12px_rgba(251,191,36,0.7)]" />
-                                    Publishing & Bonus
-                                </h3>
-                                <p className="text-[10px] text-gray-500 mt-1 font-mono">
-                                    {bonusStats ? `${bonusStats.startDate} to ${bonusStats.endDate} · open dedicated report` : 'Loading publishing report'}
-                                </p>
-                            </div>
-                            <div className="grid grid-cols-3 gap-3 min-w-full lg:min-w-[460px]">
-                                <div className="rounded-lg bg-black/30 border border-white/10 p-3">
-                                    <div className="text-[9px] uppercase tracking-widest text-gray-600">Published</div>
-                                    <div className="mt-1 text-xl font-black text-emerald-300">
-                                        {formatNumber(bonusStats?.accountRows.reduce((sum, row) => sum + row.weekPublishCount, 0) || 0)}
-                                    </div>
-                                </div>
-                                <div className="rounded-lg bg-black/30 border border-white/10 p-3">
-                                    <div className="text-[9px] uppercase tracking-widest text-gray-600">Settlement</div>
-                                    <div className="mt-1 text-xl font-black text-cyan-300">
-                                        {formatNumber(bonusStats?.accountRows.reduce((sum, row) => sum + row.bonusVideos.length, 0) || 0)}
-                                    </div>
-                                </div>
-                                <div className="rounded-lg bg-black/30 border border-white/10 p-3">
-                                    <div className="text-[9px] uppercase tracking-widest text-gray-600">Bonus</div>
-                                    <div className="mt-1 text-xl font-black text-emerald-300 group-hover:text-amber-200">
-                                        ${formatNumber(bonusStats?.accountRows.reduce((sum, row) => sum + row.bonusAmount, 0) || 0)}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </Link>
 
                     {/* Bottom Row: Detailed Table */}
                     <div ref={tableRef} className="h-[400px] shrink-0">
-                        <VideoDetailTable videos={filteredVideos} accounts={activeAccounts} platform={platform} />
+                        {showInitialSkeleton ? (
+                            <TableSkeleton />
+                        ) : (
+                            <VideoDetailTable videos={filteredVideos} accounts={activeAccounts} platform={platform} />
+                        )}
                     </div>
                 </main>
             </div>
@@ -618,8 +722,9 @@ export default function DashboardLayout({
                 onClose={() => setGroupManagerOpen(false)}
                 onRefresh={async () => {
                     await refreshManagement()
-                    await refreshBonusStats()
+                    void refreshBonusStats()
                 }}
+                onAccountsChanged={refreshAfterAccountChange}
             />
         </div>
     )
