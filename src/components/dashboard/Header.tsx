@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { getLatestSyncStatus, triggerSync } from '@/app/actions/sync'
 import ExcelDownloadButton from '@/components/common/ExcelDownloadButton'
-import { DailySnapshot, TikTokAccount, InstagramAccount } from '@/types/database'
+import { DailySnapshot, TikTokAccount, InstagramAccount, PublishingBonusStats } from '@/types/database'
 
 interface HeaderProps {
     sessionId: string
@@ -11,9 +12,10 @@ interface HeaderProps {
     snapshots: DailySnapshot[]
     accounts: TikTokAccount[]
     instagramAccounts: InstagramAccount[]
+    bonusStats?: PublishingBonusStats | null
 }
 
-export default function Header({ sessionId, onLogout, snapshots, accounts, instagramAccounts }: HeaderProps) {
+export default function Header({ sessionId, onLogout, snapshots, accounts, instagramAccounts, bonusStats }: HeaderProps) {
     const [statusMessage, setStatusMessage] = useState('SYNC DATA')
     const [isSyncing, setIsSyncing] = useState(false)
 
@@ -73,7 +75,7 @@ export default function Header({ sessionId, onLogout, snapshots, accounts, insta
     }
 
     return (
-        <header className="glass-panel p-4 rounded-xl flex justify-between items-center shrink-0" style={{ overflow: 'visible' }}>
+        <header className="glass-panel p-4 rounded-xl flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between shrink-0" style={{ overflow: 'visible' }}>
             <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded bg-gradient-to-br from-cyan-600 to-blue-700 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -92,11 +94,37 @@ export default function Header({ sessionId, onLogout, snapshots, accounts, insta
                     </div>
                 </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3 xl:justify-end">
+                <Link
+                    href="/publishing-bonus"
+                    className="group flex min-h-[48px] items-center gap-3 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-emerald-200 shadow-[0_0_24px_rgba(16,185,129,0.08)] transition-all hover:-translate-y-0.5 hover:border-emerald-300/70 hover:bg-emerald-400/15 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/50"
+                    aria-label="Open Publishing and Bonus report"
+                >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-300/15 text-emerald-200 ring-1 ring-emerald-300/30 group-hover:bg-emerald-300/25">
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 19V5" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 19V9" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V7" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16 19v-5" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 19V11" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 19h18" />
+                        </svg>
+                    </span>
+                    <span className="min-w-0">
+                        <span className="block text-[9px] font-mono uppercase tracking-[0.22em] text-emerald-300/70">Finance</span>
+                        <span className="block whitespace-nowrap text-xs font-bold uppercase tracking-wider text-current">Publishing & Bonus</span>
+                    </span>
+                    <svg className="h-3.5 w-3.5 shrink-0 text-emerald-300/70 transition-transform group-hover:translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m13 6 6 6-6 6" />
+                    </svg>
+                </Link>
+
                 <ExcelDownloadButton
                     snapshots={snapshots}
                     accounts={accounts}
                     instagramAccounts={instagramAccounts}
+                    bonusStats={bonusStats}
                 />
 
                 <div className="w-px h-8 bg-white/10 mx-2"></div>

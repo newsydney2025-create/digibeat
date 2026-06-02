@@ -66,11 +66,162 @@ export type Database = {
                 }
                 Relationships: []
             }
+            account_groups: {
+                Row: {
+                    id: string
+                    name: string
+                    color: string
+                    group_type: 'folder' | 'manager'
+                    parent_id: string | null
+                    note: string | null
+                    sort_order: number
+                    is_active: boolean
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    name: string
+                    color?: string
+                    group_type?: 'folder' | 'manager'
+                    parent_id?: string | null
+                    note?: string | null
+                    sort_order?: number
+                    is_active?: boolean
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    name?: string
+                    color?: string
+                    group_type?: 'folder' | 'manager'
+                    parent_id?: string | null
+                    note?: string | null
+                    sort_order?: number
+                    is_active?: boolean
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "account_groups_parent_id_fkey"
+                        columns: ["parent_id"]
+                        isOneToOne: false
+                        referencedRelation: "account_groups"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            account_group_members: {
+                Row: {
+                    id: string
+                    group_id: string
+                    platform: 'tiktok' | 'instagram'
+                    account_id: string
+                    sort_order: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    group_id: string
+                    platform?: 'tiktok' | 'instagram'
+                    account_id: string
+                    sort_order?: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    group_id?: string
+                    platform?: 'tiktok' | 'instagram'
+                    account_id?: string
+                    sort_order?: number
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "account_group_members_group_id_fkey"
+                        columns: ["group_id"]
+                        isOneToOne: false
+                        referencedRelation: "account_groups"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            account_notes: {
+                Row: {
+                    id: string
+                    platform: 'tiktok' | 'instagram'
+                    account_id: string
+                    note: string
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    platform: 'tiktok' | 'instagram'
+                    account_id: string
+                    note?: string
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    platform?: 'tiktok' | 'instagram'
+                    account_id?: string
+                    note?: string
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: []
+            }
+            account_manager_history: {
+                Row: {
+                    id: string
+                    platform: 'tiktok' | 'instagram'
+                    account_id: string
+                    group_id: string | null
+                    effective_from: string
+                    effective_to: string | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    platform: 'tiktok' | 'instagram'
+                    account_id: string
+                    group_id?: string | null
+                    effective_from?: string
+                    effective_to?: string | null
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    platform?: 'tiktok' | 'instagram'
+                    account_id?: string
+                    group_id?: string | null
+                    effective_from?: string
+                    effective_to?: string | null
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "account_manager_history_group_id_fkey"
+                        columns: ["group_id"]
+                        isOneToOne: false
+                        referencedRelation: "account_groups"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
             daily_snapshots: {
                 Row: {
                     account_id: string
                     created_at: string | null
                     date: string
+                    gain_comments: number | null
+                    gain_likes: number | null
+                    gain_shares: number | null
+                    gain_views: number | null
                     id: string
                     total_comments: number | null
                     total_likes: number | null
@@ -82,6 +233,10 @@ export type Database = {
                     account_id: string
                     created_at?: string | null
                     date: string
+                    gain_comments?: number | null
+                    gain_likes?: number | null
+                    gain_shares?: number | null
+                    gain_views?: number | null
                     id?: string
                     total_comments?: number | null
                     total_likes?: number | null
@@ -93,6 +248,10 @@ export type Database = {
                     account_id?: string
                     created_at?: string | null
                     date?: string
+                    gain_comments?: number | null
+                    gain_likes?: number | null
+                    gain_shares?: number | null
+                    gain_views?: number | null
                     id?: string
                     total_comments?: number | null
                     total_likes?: number | null
@@ -448,6 +607,7 @@ export type TableRow<T extends keyof Database['public']['Tables']> = Database['p
 export type TikTokAccount = TableRow<'tiktok_accounts'>
 export type TikTokVideo = TableRow<'tiktok_videos'>
 export type SyncLog = TableRow<'sync_logs'>
+export type GroupType = 'folder' | 'manager'
 
 // Extended types for dashboard
 export interface TikTokVideoWithAccount extends TikTokVideo {
@@ -469,15 +629,129 @@ export interface AccountGroup {
     id: string
     name: string
     color: string
+    group_type: GroupType
+    parent_id: string | null
+    note: string | null
+    sort_order: number
+    is_active: boolean
     created_at: string
-    members?: string[] // account IDs
+    updated_at?: string
+    members?: AccountGroupMember[]
+    children?: AccountGroup[]
 }
 
 export interface AccountGroupMember {
     id: string
     group_id: string
+    platform: Platform
     account_id: string
+    sort_order: number
     created_at: string
+}
+
+export interface AccountNote {
+    id: string
+    platform: Platform
+    account_id: string
+    note: string
+    created_at: string
+    updated_at: string
+}
+
+export interface UnifiedAccount {
+    platform: Platform
+    id: string
+    username: string
+    displayName: string
+    note: string
+    managerGroupId: string | null
+}
+
+export interface PublishingBonusDay {
+    date: string
+    hasDataAvailable: boolean
+    publishCount: number
+    settlementCount: number
+    missingSettlementCount: number
+    views: number
+    likes: number
+    comments: number
+    shares: number
+}
+
+export type PublishingBonusVideoStatus = 'published' | 'ready' | 'missing'
+
+export interface PublishingBonusVideo {
+    platform: Platform
+    accountId: string
+    username: string
+    videoId: string
+    title: string
+    url: string
+    publishedDate: string
+    settlementDate: string
+    currentViews: number
+    settledViews: number | null
+    bonusAmount: number
+    isEstimated: boolean
+    status: PublishingBonusVideoStatus
+    managerGroupId: string | null
+    managerName: string
+    managerColor: string | null
+}
+
+export interface PublishingBonusAccountRow {
+    platform: Platform
+    accountId: string
+    username: string
+    displayName: string
+    accountUrl: string
+    managerGroupId: string | null
+    managerName: string
+    managerColor: string | null
+    accountNote: string
+    days: PublishingBonusDay[]
+    weekPublishCount: number
+    weekViews: number
+    weekLikes: number
+    weekComments: number
+    weekShares: number
+    avgViewsPerPost: number
+    settlementCount: number
+    missingSettlementCount: number
+    bonusAmount: number
+    publishedVideos: PublishingBonusVideo[]
+    bonusVideos: PublishingBonusVideo[]
+}
+
+export interface PublishingBonusManagerRow {
+    groupId: string | null
+    groupType: GroupType | 'unassigned'
+    parentId: string | null
+    name: string
+    color: string
+    note: string
+    managerCount: number
+    accountCount: number
+    platforms: Platform[]
+    days: PublishingBonusDay[]
+    weekPublishCount: number
+    weekViews: number
+    weekLikes: number
+    weekComments: number
+    weekShares: number
+    avgViewsPerPost: number
+    settlementCount: number
+    missingSettlementCount: number
+    bonusAmount: number
+}
+
+export interface PublishingBonusStats {
+    startDate: string
+    endDate: string
+    dates: string[]
+    accountRows: PublishingBonusAccountRow[]
+    managerRows: PublishingBonusManagerRow[]
 }
 
 // Instagram types

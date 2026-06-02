@@ -1,7 +1,7 @@
 const http = require('http');
 
 // Configuration
-const TARGET_HOUR = 9; // 09:00 AM
+const TARGET_HOUR = 21; // 09:00 PM
 const TARGET_MINUTE = 0;
 const TIMEZONE = 'Australia/Sydney';
 
@@ -66,7 +66,7 @@ function checkTime() {
     const currentMinute = sydneyDate.getMinutes();
     const currentDateStr = sydneyDate.toDateString();
 
-    // Check if it's 9:00 AM and we haven't run today
+    // Check if it's 9:00 PM and we haven't run today
     if (currentHour === TARGET_HOUR && currentMinute === TARGET_MINUTE && lastRunDate !== currentDateStr) {
         triggerSync();
         lastRunDate = currentDateStr;

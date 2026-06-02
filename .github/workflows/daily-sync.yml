@@ -2,10 +2,10 @@ name: Daily Data Sync
 
 on:
   schedule:
-    # Runs at 22:00 UTC everyday
-    # During AEDT (UTC+11), this is 09:00 Sydney
-    # During AEST (UTC+10), this is 08:00 Sydney
-    - cron: '0 22 * * *'
+    # Runs at 11:00 UTC everyday
+    # During AEST (UTC+10), this is 21:00 Sydney
+    # During AEDT (UTC+11), this is 22:00 Sydney
+    - cron: '0 11 * * *'
   workflow_dispatch:
 
 jobs:

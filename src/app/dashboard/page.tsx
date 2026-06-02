@@ -1,5 +1,5 @@
 import DashboardApp from '@/components/dashboard/DashboardApp'
 
-export default function Home() {
+export default function DashboardPage() {
     return <DashboardApp />
 }

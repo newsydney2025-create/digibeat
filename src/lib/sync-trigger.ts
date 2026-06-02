@@ -18,15 +18,16 @@ export async function triggerSyncProcess(platform: string = 'all', source: strin
     )
 
     const results: any = { triggered: [] }
+    const targets = await fetchActiveScrapingTargets(supabase)
 
     // --- TikTok ---
     if (platform === 'all' || platform === 'tiktok') {
-        if (SCRAPING_TARGETS.tiktok.length > 0) {
+        if (targets.tiktok.length > 0) {
             const runId = await triggerApifyRun(
                 apiToken,
                 'clockworks~tiktok-scraper',
                 {
-                    profiles: SCRAPING_TARGETS.tiktok,
+                    profiles: targets.tiktok,
                     resultsPerPage: 20,
                     profileScrapeSections: ['videos'],
                     profileSorting: 'latest'
@@ -39,12 +40,12 @@ export async function triggerSyncProcess(platform: string = 'all', source: strin
 
     // --- Instagram ---
     if (platform === 'all' || platform === 'instagram') {
-        if (SCRAPING_TARGETS.instagram.length > 0) {
+        if (targets.instagram.length > 0) {
             const runId = await triggerApifyRun(
                 apiToken,
                 'apify~instagram-scraper',
                 {
-                    directUrls: SCRAPING_TARGETS.instagram,
+                    directUrls: targets.instagram,
                     resultsLimit: 20,
                     scrapePosts: true,
                     scrapeComments: false,
@@ -68,6 +69,41 @@ export async function triggerSyncProcess(platform: string = 'all', source: strin
     })
 
     return results
+}
+
+async function fetchActiveScrapingTargets(supabase: any) {
+    const [tkResult, igResult] = await Promise.all([
+        supabase
+            .from('tiktok_accounts')
+            .select('username')
+            .eq('is_active', true),
+        supabase
+            .from('instagram_accounts')
+            .select('username, website')
+            .eq('is_active', true),
+    ])
+
+    if (tkResult.error) {
+        console.warn('Falling back to configured TikTok targets:', tkResult.error.message)
+    }
+
+    if (igResult.error) {
+        console.warn('Falling back to configured Instagram targets:', igResult.error.message)
+    }
+
+    const tiktok = tkResult.data?.length
+        ? Array.from(new Set(tkResult.data.map((account: any) => account.username).filter(Boolean)))
+        : SCRAPING_TARGETS.tiktok
+
+    const instagram = igResult.data?.length
+        ? Array.from(new Set(igResult.data.map((account: any) => {
+            const website = account.website?.trim()
+            if (website && website.includes('instagram.com')) return website
+            return `https://www.instagram.com/${account.username}/`
+        }).filter(Boolean)))
+        : SCRAPING_TARGETS.instagram
+
+    return { tiktok, instagram }
 }
 
 async function triggerApifyRun(token: string, actorId: string, input: any, webhookUrl: string) {

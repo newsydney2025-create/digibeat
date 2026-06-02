@@ -419,12 +419,24 @@ export async function fetchAccountGroups(): Promise<AccountGroup[]> {
         ((groups || []) as any[]).map(async (group: any) => {
             const { data: members } = await supabase
                 .from('account_group_members' as any)
-                .select('account_id')
+                .select('*')
                 .eq('group_id', group.id)
 
             return {
                 ...group,
-                members: ((members || []) as any[]).map((m: any) => m.account_id),
+                group_type: (group as any).group_type || 'manager',
+                parent_id: (group as any).parent_id || null,
+                note: (group as any).note || null,
+                sort_order: (group as any).sort_order || 0,
+                is_active: (group as any).is_active ?? true,
+                members: ((members || []) as any[]).map((m: any) => ({
+                    id: m.id || `${group.id}-${m.account_id}`,
+                    group_id: group.id,
+                    platform: m.platform || 'tiktok',
+                    account_id: m.account_id,
+                    sort_order: m.sort_order || 0,
+                    created_at: m.created_at || group.created_at,
+                })),
             } as AccountGroup
         })
     )
@@ -464,7 +476,22 @@ export async function createAccountGroup(
         await supabase.from('account_group_members' as any).insert(members as any)
     }
 
-    return { ...(group as any), members: accountIds } as AccountGroup
+    return {
+        ...(group as any),
+        group_type: (group as any).group_type || 'manager',
+        parent_id: (group as any).parent_id || null,
+        note: (group as any).note || null,
+        sort_order: (group as any).sort_order || 0,
+        is_active: (group as any).is_active ?? true,
+        members: accountIds.map((accountId, index) => ({
+            id: `${(group as any).id}-${accountId}`,
+            group_id: (group as any).id,
+            platform: 'tiktok',
+            account_id: accountId,
+            sort_order: index,
+            created_at: (group as any).created_at,
+        })),
+    } as AccountGroup
 }
 
 /**

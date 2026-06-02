@@ -2,12 +2,13 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import * as XLSX from 'xlsx'
-import { DailySnapshot, TikTokAccount, InstagramAccount } from '@/types/database'
+import { DailySnapshot, TikTokAccount, InstagramAccount, PublishingBonusStats } from '@/types/database'
 
 interface ExcelDownloadButtonProps {
     snapshots: DailySnapshot[]
     accounts: TikTokAccount[]
     instagramAccounts: InstagramAccount[]
+    bonusStats?: PublishingBonusStats | null
 }
 
 interface ExcelRow {
@@ -44,7 +45,7 @@ interface WeeklySummaryRow {
     'Days with Data': number
 }
 
-export default function ExcelDownloadButton({ snapshots, accounts, instagramAccounts }: ExcelDownloadButtonProps) {
+export default function ExcelDownloadButton({ snapshots, accounts, instagramAccounts, bonusStats }: ExcelDownloadButtonProps) {
     const [showMenu, setShowMenu] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
 
@@ -319,6 +320,141 @@ export default function ExcelDownloadButton({ snapshots, accounts, instagramAcco
         setShowMenu(false)
     }
 
+    const handleBonusDownload = () => {
+        if (!bonusStats) {
+            alert('Bonus data is still loading')
+            return
+        }
+
+        const managerRows = bonusStats.managerRows.map((row) => ({
+            Type: row.groupType,
+            Name: row.name,
+            Note: row.note,
+            Platforms: row.platforms.join(', '),
+            'Account Count': row.accountCount,
+            ...Object.fromEntries(row.days.map((day) => [day.date, day.publishCount])),
+            'Week Posts': row.weekPublishCount,
+            'Week Views': row.weekViews,
+            'Week Likes': row.weekLikes,
+            'Week Comments': row.weekComments,
+            'Week Shares': row.weekShares,
+            'Avg Views / Post': row.avgViewsPerPost,
+            'Settlement Eligible': row.settlementCount,
+            Missing: row.missingSettlementCount,
+            'Bonus Due': row.bonusAmount,
+        }))
+
+        const accountRows = bonusStats.accountRows.map((row) => ({
+            Manager: row.managerName,
+            Platform: row.platform,
+            Account: row.username,
+            Link: row.accountUrl,
+            Name: row.displayName,
+            Note: row.accountNote,
+            ...Object.fromEntries(row.days.map((day) => [day.date, day.publishCount])),
+            'Week Posts': row.weekPublishCount,
+            'Week Views': row.weekViews,
+            'Week Likes': row.weekLikes,
+            'Week Comments': row.weekComments,
+            'Week Shares': row.weekShares,
+            'Avg Views / Post': row.avgViewsPerPost,
+            'Settlement Eligible': row.settlementCount,
+            Missing: row.missingSettlementCount,
+            'Bonus Due': row.bonusAmount,
+            'Settled Videos': row.bonusVideos.length,
+        }))
+
+        const settledVideoRows = bonusStats.accountRows.flatMap((row) =>
+            row.bonusVideos.map((video) => ({
+                Manager: row.managerName,
+                Platform: video.platform,
+                Account: video.username,
+                'Video ID': video.videoId,
+                Title: video.title,
+                Link: video.url,
+                Published: video.publishedDate,
+                'Settlement Date': video.settlementDate,
+                'Day-7 Views': video.settledViews ?? '',
+                'Bonus Due': video.bonusAmount,
+                Status: video.status === 'missing' ? 'Missing' : 'Ready',
+            }))
+        )
+
+        const publishedVideoRows = bonusStats.accountRows.flatMap((row) =>
+            row.publishedVideos.map((video) => ({
+                Manager: video.managerName,
+                Platform: video.platform,
+                Account: video.username,
+                'Video ID': video.videoId,
+                Title: video.title,
+                Link: video.url,
+                Published: video.publishedDate,
+                'Settlement Date': video.settlementDate,
+                'Current Views': video.currentViews,
+            }))
+        )
+
+        const wb = XLSX.utils.book_new()
+        const managerSheet = XLSX.utils.json_to_sheet(managerRows)
+        const accountSheet = XLSX.utils.json_to_sheet(accountRows)
+        const settledVideoSheet = XLSX.utils.json_to_sheet(settledVideoRows)
+        const publishedVideoSheet = XLSX.utils.json_to_sheet(publishedVideoRows)
+
+        managerSheet['!cols'] = [
+            { wch: 14 },
+            { wch: 24 },
+            { wch: 30 },
+            { wch: 18 },
+            { wch: 14 },
+            ...bonusStats.dates.map(() => ({ wch: 12 })),
+            { wch: 12 },
+            { wch: 14 },
+            { wch: 14 },
+            { wch: 16 },
+            { wch: 14 },
+            { wch: 18 },
+            { wch: 12 },
+        ]
+        accountSheet['!cols'] = [
+            { wch: 24 },
+            { wch: 12 },
+            { wch: 24 },
+            { wch: 36 },
+            { wch: 24 },
+            { wch: 30 },
+            ...bonusStats.dates.map(() => ({ wch: 12 })),
+            { wch: 12 },
+            { wch: 14 },
+            { wch: 14 },
+            { wch: 16 },
+            { wch: 14 },
+            { wch: 18 },
+            { wch: 12 },
+            { wch: 14 },
+        ]
+        settledVideoSheet['!cols'] = [
+            { wch: 24 },
+            { wch: 12 },
+            { wch: 24 },
+            { wch: 24 },
+            { wch: 48 },
+            { wch: 42 },
+            { wch: 12 },
+            { wch: 16 },
+            { wch: 16 },
+            { wch: 12 },
+            { wch: 10 },
+        ]
+
+        XLSX.utils.book_append_sheet(wb, managerSheet, 'Bonus Summary')
+        XLSX.utils.book_append_sheet(wb, accountSheet, 'Account Daily Posts')
+        XLSX.utils.book_append_sheet(wb, settledVideoSheet, 'Settled Videos')
+        XLSX.utils.book_append_sheet(wb, publishedVideoSheet, 'Published Videos')
+        XLSX.writeFile(wb, `Digibeat_Bonus_${bonusStats.startDate}_to_${bonusStats.endDate}.xlsx`)
+
+        setShowMenu(false)
+    }
+
     return (
         <div className="relative" ref={menuRef}>
             <button
@@ -358,6 +494,16 @@ export default function ExcelDownloadButton({ snapshots, accounts, instagramAcco
                         <div>
                             <div className="text-xs font-semibold text-white">Weekly Report</div>
                             <div className="text-[10px] text-gray-500">Last 7 days + summary</div>
+                        </div>
+                    </button>
+                    <button
+                        onClick={handleBonusDownload}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition-colors text-left"
+                    >
+                        <span className="text-base">¥</span>
+                        <div>
+                            <div className="text-xs font-semibold text-white">Bonus Report</div>
+                            <div className="text-[10px] text-gray-500">Natural week by manager</div>
                         </div>
                     </button>
                 </div>

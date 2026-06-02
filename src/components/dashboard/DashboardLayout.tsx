@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { TikTokAccount, TikTokVideo, MetricKey, DashboardMetrics, DailySnapshot, AccountGroup, InstagramAccount, InstagramReel, Platform } from '@/types/database'
+import Link from 'next/link'
+import { TikTokAccount, TikTokVideo, MetricKey, DashboardMetrics, DailySnapshot, AccountGroup, AccountGroupMember, AccountNote, InstagramAccount, InstagramReel, Platform, PublishingBonusStats } from '@/types/database'
 import Header from './Header'
 import AccountSidebar from './AccountSidebar'
 import MetricCards from './MetricCards'
@@ -14,8 +15,9 @@ import HashtagChart from './HashtagChart'
 import TrafficShareChart from './TrafficShareChart'
 import VideoDetailTable from './VideoDetailTable'
 import GroupManager from './GroupManager'
-import { generateSessionId } from '@/lib/utils/format'
-import { fetchSnapshots, fetchAccountGroups } from '@/app/actions/tiktok'
+import { formatNumber } from '@/lib/utils/format'
+import { fetchSnapshots } from '@/app/actions/tiktok'
+import { assignAccountToManager, fetchAccountManagementState, fetchPublishingBonusStats, saveGroupPositions } from '@/app/actions/account-management'
 import PlatformSwitcher from '@/components/common/PlatformSwitcher'
 import { adaptReelsToVideos, adaptInstagramAccounts } from '@/lib/utils/platformAdapter'
 
@@ -29,6 +31,7 @@ interface DashboardLayoutProps {
     instagramReelStats: any[]
     platform: Platform
     onPlatformChange: (platform: Platform) => void
+    onDataRefresh: () => Promise<void>
     onLogout: () => void
 }
 
@@ -44,6 +47,7 @@ export default function DashboardLayout({
     instagramReelStats,
     platform,
     onPlatformChange,
+    onDataRefresh,
     onLogout,
 }: DashboardLayoutProps) {
     const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
@@ -53,6 +57,10 @@ export default function DashboardLayout({
     const [timeRange, setTimeRange] = useState<TimeRange>('30D')
     const [snapshots, setSnapshots] = useState<DailySnapshot[]>([])
     const [groups, setGroups] = useState<AccountGroup[]>([])
+    const [members, setMembers] = useState<AccountGroupMember[]>([])
+    const [accountNotes, setAccountNotes] = useState<AccountNote[]>([])
+    const [bonusStats, setBonusStats] = useState<PublishingBonusStats | null>(null)
+    const [bonusLoading, setBonusLoading] = useState(true)
     const [groupManagerOpen, setGroupManagerOpen] = useState(false)
 
     // Hoisted state variables (must be before useMemo)
@@ -110,22 +118,52 @@ export default function DashboardLayout({
         }
     }, [platform, currentMetric])
 
-    // Fetch daily snapshots and groups
+    const refreshManagement = async () => {
+        const management = await fetchAccountManagementState()
+        setGroups(management.groups)
+        setMembers(management.members)
+        setAccountNotes(management.notes)
+    }
+
+    const refreshBonusStats = async () => {
+        setBonusLoading(true)
+        try {
+            const data = await fetchPublishingBonusStats()
+            setBonusStats(data)
+        } catch (error) {
+            console.error('Failed to load bonus stats', error)
+            setBonusStats(null)
+        } finally {
+            setBonusLoading(false)
+        }
+    }
+
+    const refreshAfterAccountChange = async () => {
+        await onDataRefresh()
+        await refreshManagement()
+        await refreshBonusStats()
+    }
+
+    // Fetch daily snapshots and account management first; bonus stats can load independently.
     useEffect(() => {
         const loadData = async () => {
             try {
-                const [snapshotsData, groupsData] = await Promise.all([
+                const [snapshotsData, managementData] = await Promise.all([
                     fetchSnapshots(Date.now()),
-                    fetchAccountGroups()
+                    fetchAccountManagementState(),
                 ])
                 console.log('Fetched snapshots:', snapshotsData.length, snapshotsData.slice(0, 3))
                 setSnapshots(snapshotsData)
-                setGroups(groupsData)
+                setGroups(managementData.groups)
+                setMembers(managementData.members)
+                setAccountNotes(managementData.notes)
             } catch (error) {
                 console.error('Failed to load data', error)
             }
         }
+
         loadData()
+        refreshBonusStats()
     }, [])
 
     // Filter videos by selected accounts
@@ -249,8 +287,14 @@ export default function DashboardLayout({
 
             <div className="relative z-10 flex h-screen overflow-hidden">
                 <AccountSidebar
+                    platform={platform}
                     accounts={activeAccounts}
+                    stats={activeStats}
+                    snapshots={activeSnapshots}
                     selectedAccounts={selectedAccounts}
+                    currentMetric={currentMetric}
+                    timeRange={timeRange}
+                    viewMode={viewMode}
                     onToggleAccount={(id) => {
                         setSelectedAccounts((prev) =>
                             prev.includes(id)
@@ -265,23 +309,31 @@ export default function DashboardLayout({
                                 : activeAccounts.map(a => a.id)
                         )
                     }}
-                    videos={activeVideos}
                     hoveredAccount={hoveredAccount}
                     onAccountHover={setHoveredAccount}
                     groups={groups}
+                    members={members}
+                    notes={accountNotes}
                     onOpenGroupManager={() => setGroupManagerOpen(true)}
-                    onSelectGroup={(groupId) => {
-                        const group = groups.find(g => g.id === groupId)
-                        if (group?.members) {
-                            // Toggle: if all selected, deselect all; otherwise select all
-                            const allSelected = group.members.every(id => selectedAccounts.includes(id))
-                            if (allSelected) {
-                                setSelectedAccounts(prev => prev.filter(id => !group.members!.includes(id)))
-                            } else {
-                                setSelectedAccounts(prev => Array.from(new Set([...prev, ...group.members!])))
-                            }
-                        }
+                    onSelectAccounts={(accountIds) => {
+                        const allSelected = accountIds.length > 0 && accountIds.every((id) => selectedAccounts.includes(id))
+                        setSelectedAccounts((prev) =>
+                            allSelected
+                                ? prev.filter((id) => !accountIds.includes(id))
+                                : Array.from(new Set([...prev, ...accountIds]))
+                        )
                     }}
+                    onAssignAccount={async (accountId, groupId) => {
+                        await assignAccountToManager({ platform, account_id: accountId, group_id: groupId })
+                        await refreshManagement()
+                        await refreshBonusStats()
+                    }}
+                    onMoveGroup={async (groupId, parentId) => {
+                        const siblings = groups.filter((group) => (group.parent_id || null) === parentId && group.id !== groupId)
+                        await saveGroupPositions([{ id: groupId, parent_id: parentId, sort_order: siblings.length }])
+                        await refreshManagement()
+                    }}
+                    onAccountsChanged={refreshAfterAccountChange}
                 />
 
                 <main className="flex-1 flex flex-col min-w-0 h-full p-6 gap-6 overflow-y-auto custom-scrollbar">
@@ -299,6 +351,7 @@ export default function DashboardLayout({
                             // `activeSnapshots` contains ALL snapshots (fetchSnapshots returns all).
                             // So we pass them all.
                             instagramAccounts={instagramAccounts}
+                            bonusStats={bonusStats}
                         />
                         <PlatformSwitcher
                             platform={platform}
@@ -509,6 +562,44 @@ export default function DashboardLayout({
                         <ImpactScatterChart videos={filteredVideos} accounts={activeAccounts} onVideoClick={(url) => window.open(url, '_blank')} />
                     </div>
 
+                    <Link
+                        id="publishing-bonus"
+                        href="/publishing-bonus"
+                        className="glass-panel rounded-xl p-5 shrink-0 border border-white/10 hover:border-amber-400/50 hover:bg-white/[0.04] transition-colors group"
+                    >
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <h3 className="text-sm font-bold text-gray-300 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="w-1.5 h-5 bg-amber-400 rounded-full shadow-[0_0_12px_rgba(251,191,36,0.7)]" />
+                                    Publishing & Bonus
+                                </h3>
+                                <p className="text-[10px] text-gray-500 mt-1 font-mono">
+                                    {bonusStats ? `${bonusStats.startDate} to ${bonusStats.endDate} · open dedicated report` : 'Loading publishing report'}
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3 min-w-full lg:min-w-[460px]">
+                                <div className="rounded-lg bg-black/30 border border-white/10 p-3">
+                                    <div className="text-[9px] uppercase tracking-widest text-gray-600">Published</div>
+                                    <div className="mt-1 text-xl font-black text-emerald-300">
+                                        {formatNumber(bonusStats?.accountRows.reduce((sum, row) => sum + row.weekPublishCount, 0) || 0)}
+                                    </div>
+                                </div>
+                                <div className="rounded-lg bg-black/30 border border-white/10 p-3">
+                                    <div className="text-[9px] uppercase tracking-widest text-gray-600">Settlement</div>
+                                    <div className="mt-1 text-xl font-black text-cyan-300">
+                                        {formatNumber(bonusStats?.accountRows.reduce((sum, row) => sum + row.bonusVideos.length, 0) || 0)}
+                                    </div>
+                                </div>
+                                <div className="rounded-lg bg-black/30 border border-white/10 p-3">
+                                    <div className="text-[9px] uppercase tracking-widest text-gray-600">Bonus</div>
+                                    <div className="mt-1 text-xl font-black text-emerald-300 group-hover:text-amber-200">
+                                        ${formatNumber(bonusStats?.accountRows.reduce((sum, row) => sum + row.bonusAmount, 0) || 0)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </Link>
+
                     {/* Bottom Row: Detailed Table */}
                     <div ref={tableRef} className="h-[400px] shrink-0">
                         <VideoDetailTable videos={filteredVideos} accounts={activeAccounts} platform={platform} />
@@ -518,10 +609,17 @@ export default function DashboardLayout({
 
             {/* Group Manager Modal */}
             <GroupManager
-                accounts={activeAccounts}
+                tiktokAccounts={accounts}
+                instagramAccounts={instagramAccounts}
+                groups={groups}
+                members={members}
+                notes={accountNotes}
                 isOpen={groupManagerOpen}
                 onClose={() => setGroupManagerOpen(false)}
-                onGroupsChange={setGroups}
+                onRefresh={async () => {
+                    await refreshManagement()
+                    await refreshBonusStats()
+                }}
             />
         </div>
     )
