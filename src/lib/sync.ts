@@ -4,6 +4,45 @@ import type { Database } from '../types/database'
 
 // --- Types ---
 
+const SYDNEY_TIME_ZONE = 'Australia/Sydney'
+
+function isDateKey(value: string | null | undefined): value is string {
+    return !!value && /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function sydneyDateKey(value: string | number | Date | null | undefined = new Date()) {
+    if (!value) return null
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return null
+
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: SYDNEY_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(date)
+
+    const year = parts.find((part) => part.type === 'year')?.value
+    const month = parts.find((part) => part.type === 'month')?.value
+    const day = parts.find((part) => part.type === 'day')?.value
+
+    return year && month && day ? `${year}-${month}-${day}` : null
+}
+
+function previousDateKey(dateKey: string) {
+    const [year, month, day] = dateKey.split('-').map((part) => Number.parseInt(part, 10))
+    const date = new Date(Date.UTC(year, month - 1, day))
+    date.setUTCDate(date.getUTCDate() - 1)
+    return date.toISOString().slice(0, 10)
+}
+
+function resolveProcessingDate(targetDate?: string | null) {
+    if (isDateKey(targetDate)) return targetDate
+    const today = sydneyDateKey(new Date())
+    if (!today) throw new Error('Unable to resolve Sydney processing date')
+    return today
+}
+
 export interface ApifyTikTokData {
     id: string
     text: string
@@ -86,17 +125,15 @@ interface VideoGainStats {
 
 // --- Bulk Processing Functions ---
 
-export async function processTikTokDataBulk(supabase: SupabaseClient<Database>, items: ApifyTikTokData[], isDaily: boolean) {
+export async function processTikTokDataBulk(supabase: SupabaseClient<Database>, items: ApifyTikTokData[], isDaily: boolean, targetDate?: string | null) {
     if (!items || items.length === 0) return
 
     // Deduplicate items to prevent double counting in snapshots
     const uniqueItems = Array.from(new Map(items.map(item => [item.id, item])).values())
 
 
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
-    const d = new Date(today + 'T00:00:00')
-    d.setDate(d.getDate() - 1)
-    const yesterday = d.toISOString().split('T')[0]
+    const today = resolveProcessingDate(targetDate)
+    const yesterday = previousDateKey(today)
 
     // 1. Prepare Accounts
     const accountsMap = new Map<string, any>() // username -> accountObj
@@ -314,17 +351,15 @@ export async function processTikTokDataBulk(supabase: SupabaseClient<Database>, 
     }
 }
 
-export async function processInstagramDataBulk(supabase: SupabaseClient<Database>, items: ApifyInstagramData[], isDaily: boolean) {
+export async function processInstagramDataBulk(supabase: SupabaseClient<Database>, items: ApifyInstagramData[], isDaily: boolean, targetDate?: string | null) {
     if (!items || items.length === 0) return
 
     // Deduplicate items
     const uniqueItems = Array.from(new Map(items.map(item => [item.id || item.shortCode, item])).values())
 
 
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
-    const d = new Date(today + 'T00:00:00')
-    d.setDate(d.getDate() - 1)
-    const yesterday = d.toISOString().split('T')[0]
+    const today = resolveProcessingDate(targetDate)
+    const yesterday = previousDateKey(today)
 
     // 1. Prepare Accounts
     const accountsMap = new Map<string, any>()

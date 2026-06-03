@@ -10,10 +10,15 @@ export async function POST(request: NextRequest) {
         const url = new URL(request.url)
         const platform = url.searchParams.get('platform')
         const secret = url.searchParams.get('secret')
+        const targetDate = url.searchParams.get('date')
 
         // Security Check
         if (secret !== process.env.CRON_SECRET) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+            return NextResponse.json({ error: 'Invalid target date' }, { status: 400 })
         }
 
         const body = await request.json()
@@ -58,11 +63,11 @@ export async function POST(request: NextRequest) {
         if (platform === 'tiktok') {
             const items: ApifyTikTokData[] = await datasetResponse.json()
             console.log(`Processing ${items.length} TikTok items...`)
-            await processTikTokDataBulk(supabase, items, true) // Assume isDaily=true for webhook
+            await processTikTokDataBulk(supabase, items, true, targetDate) // Assume isDaily=true for webhook
         } else if (platform === 'instagram') {
             const items: ApifyInstagramData[] = await datasetResponse.json()
             console.log(`Processing ${items.length} Instagram items...`)
-            await processInstagramDataBulk(supabase, items, true)
+            await processInstagramDataBulk(supabase, items, true, targetDate)
         } else {
             return NextResponse.json({ error: 'Invalid platform' }, { status: 400 })
         }
@@ -75,7 +80,7 @@ export async function POST(request: NextRequest) {
             started_at: new Date().toISOString(),
             completed_at: new Date().toISOString(),
             videos_synced: 0, // We could count items, but bulk function handles it. 
-            error_message: `Run ${runId} processed successfully via Bulk Upsert`
+            error_message: `Run ${runId} processed successfully via Bulk Upsert${targetDate ? ` for ${targetDate}` : ''}`
         })
 
         return NextResponse.json({ success: true })

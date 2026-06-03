@@ -2,10 +2,15 @@
 import { createClient } from '@supabase/supabase-js'
 import { SCRAPING_TARGETS } from '@/config/scraping_targets'
 
+function isDateKey(value: string | null | undefined): value is string {
+    return !!value && /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
 // Shared logic to trigger Apify Actor
-export async function triggerSyncProcess(platform: string = 'all', source: string = 'manual') {
+export async function triggerSyncProcess(platform: string = 'all', source: string = 'manual', targetDate?: string | null) {
     const apiToken = process.env.APIFY_API_TOKEN
     if (!apiToken) throw new Error('No API Token')
+    if (targetDate && !isDateKey(targetDate)) throw new Error(`Invalid target date: ${targetDate}`)
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
     if (!appUrl) throw new Error('NEXT_PUBLIC_APP_URL not set')
@@ -19,6 +24,7 @@ export async function triggerSyncProcess(platform: string = 'all', source: strin
 
     const results: any = { triggered: [] }
     const targets = await fetchActiveScrapingTargets(supabase)
+    const webhookDateParam = targetDate ? `&date=${encodeURIComponent(targetDate)}` : ''
 
     // --- TikTok ---
     if (platform === 'all' || platform === 'tiktok') {
@@ -32,7 +38,7 @@ export async function triggerSyncProcess(platform: string = 'all', source: strin
                     profileScrapeSections: ['videos'],
                     profileSorting: 'latest'
                 },
-                `${appUrl}/api/webhook/apify?platform=tiktok&secret=${process.env.CRON_SECRET}`
+                `${appUrl}/api/webhook/apify?platform=tiktok&secret=${process.env.CRON_SECRET}${webhookDateParam}`
             )
             results.triggered.push({ platform: 'tiktok', runId })
         }
@@ -52,7 +58,7 @@ export async function triggerSyncProcess(platform: string = 'all', source: strin
                     resultsType: 'posts',
                     searchLimit: 1
                 },
-                `${appUrl}/api/webhook/apify?platform=instagram&secret=${process.env.CRON_SECRET}`
+                `${appUrl}/api/webhook/apify?platform=instagram&secret=${process.env.CRON_SECRET}${webhookDateParam}`
             )
             results.triggered.push({ platform: 'instagram', runId })
         }
@@ -65,7 +71,7 @@ export async function triggerSyncProcess(platform: string = 'all', source: strin
         status: 'triggered',
         started_at: new Date().toISOString(),
         completed_at: new Date().toISOString(),
-        error_message: `Async Sync Triggered. Runs: ${JSON.stringify(results.triggered)}`
+        error_message: `Async Sync Triggered. Target date: ${targetDate || 'auto'}. Runs: ${JSON.stringify(results.triggered)}`
     })
 
     return results

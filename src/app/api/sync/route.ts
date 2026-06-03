@@ -1,6 +1,5 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { SCRAPING_TARGETS } from '@/config/scraping_targets'
 import { triggerSyncProcess } from '@/lib/sync-trigger'
 
 export const maxDuration = 60
@@ -42,9 +41,9 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json().catch(() => ({}))
-        const { platform = 'all' } = body
+        const { platform = 'all', date = null } = body
 
-        const results = await triggerSyncProcess(platform, 'manual')
+        const results = await triggerSyncProcess(platform, 'manual', date)
         return NextResponse.json({ success: true, results })
     } catch (error) {
         return NextResponse.json({ error: String(error) }, { status: 500 })
@@ -52,23 +51,20 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-    // Check Cron
-    if (verifySecret(request)) {
-        if (await hasRecentCron()) {
-            return NextResponse.json({ message: 'Skipped: Cron already ran recently.' })
-        }
-
-        try {
-            const results = await triggerSyncProcess('all', 'cron')
-            return NextResponse.json({ success: true, mode: 'cron', results })
-        } catch (error) {
-            return NextResponse.json({ error: String(error) }, { status: 500 })
-        }
+    if (!verifySecret(request)) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    return NextResponse.json({
-        message: 'Sync API (Async Mode)',
-        targets: SCRAPING_TARGETS,
-        usage: 'POST /api/sync { "platform": "tiktok" | "instagram" | "all" } - Requires Auth'
-    })
+    if (await hasRecentCron()) {
+        return NextResponse.json({ message: 'Skipped: Cron already ran recently.' })
+    }
+
+    try {
+        const url = new URL(request.url)
+        const targetDate = url.searchParams.get('date')
+        const results = await triggerSyncProcess('all', 'cron', targetDate)
+        return NextResponse.json({ success: true, mode: 'cron', targetDate: targetDate || 'auto', results })
+    } catch (error) {
+        return NextResponse.json({ error: String(error) }, { status: 500 })
+    }
 }
